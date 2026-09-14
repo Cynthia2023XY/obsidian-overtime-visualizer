@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-overtime-visualizer",
+  "name": "Overtime Visualizer",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "Evaluate late departures, overnight work, and weekend work from local attendance records.",
+  "author": "dingxinyi.2",
+  "isDesktopOnly": false
+}

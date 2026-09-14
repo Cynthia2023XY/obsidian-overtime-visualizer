@@ -1,0 +1,43 @@
+{
+  "name": "obsidian-overtime-visualizer",
+  "version": "0.1.0",
+  "description": "Visualize attendance, working duration, late departures, leave, and overnight work in Obsidian.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+    "lint": "eslint src",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
+  },
+  "keywords": [
+    "obsidian",
+    "attendance",
+    "visualization"
+  ],
+  "author": "dingxinyi.2",
+  "license": "MIT",
+  "dependencies": {
+    "echarts": "6.1.0",
+    "obsidian": "1.10.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.30.1",
+    "@eslint/json": "0.14.0",
+    "@types/node": "16.18.126",
+    "@vitest/coverage-v8": "1.6.0",
+    "esbuild": "0.25.5",
+    "eslint": "9.30.1",
+    "eslint-plugin-obsidianmd": "0.1.9",
+    "globals": "14.0.0",
+    "jiti": "2.6.1",
+    "jsdom": "24.0.0",
+    "tslib": "2.4.0",
+    "typescript": "5.8.3",
+    "typescript-eslint": "8.35.1",
+    "vitest": "1.6.0"
+  }
+}
