@@ -4,35 +4,72 @@ import { formatLocalIsoDate, shiftIsoDate } from "../utils/date";
 /** 拥有可用于下班分析时间的考勤记录 */
 type ReliableDepartureRecord = AttendanceRecord & { endMinute: number };
 
+/** 六档晚下班时间区间的稳定标识 */
+export type DepartureBandId =
+  | "nine-to-nine-thirty"
+  | "nine-thirty-to-ten"
+  | "ten-to-eleven"
+  | "eleven-to-eleven-thirty"
+  | "eleven-thirty-to-midnight"
+  | "overnight";
+
 /** 工作压力评价等级 */
 export type WorkloadLevel = "relaxed" | "moderate" | "tired" | "painful" | "insufficient";
+
+/** 单个晚下班时间档位的计分与文案定义 */
+interface DepartureBandDefinition {
+  id: DepartureBandId;
+  label: string;
+  description: string;
+  score: number;
+}
+
+/** 单个晚下班时间档位的统计结果 */
+export interface DepartureBandMetric extends DepartureBandDefinition {
+  count: number;
+  ratio: number | null;
+}
 
 /** 指定时间段内与下班压力直接相关的统计结果 */
 export interface WorkloadMetrics {
   validAttendanceDays: number;
+  departureBands: DepartureBandMetric[];
   afterNineDays: number;
-  afterNineRatio: number | null;
   afterTenDays: number;
-  afterTenRatio: number | null;
+  afterElevenDays: number;
+  afterElevenThirtyDays: number;
   overnightDays: number;
-  overnightRatio: number | null;
   weekendWorkDays: number;
+  releaseAfterTenDays: number;
+  rawPressureScore: number;
+  standardizedPressureScore: number;
 }
 
-/** 单个评价维度的等级、计数和说明 */
-export interface WorkloadDimensionEvaluation {
+/** 近 30 天积分换算得到的基础压力评价 */
+export interface PressureScoreEvaluation {
   level: WorkloadLevel;
   label: string;
-  count: number;
+  score: number | null;
   description: string;
 }
 
-/** 当前 30 天与前 30 天下班时间对比结果 */
-export interface DepartureComparison {
-  currentMedianMinute: number | null;
-  previousMedianMinute: number | null;
-  differenceMinute: number | null;
-  direction: "earlier" | "later" | "stable" | "insufficient";
+/** 当前 30 天与前 30 天的压力分对比结果 */
+export interface PressureComparison {
+  currentScore: number | null;
+  previousScore: number | null;
+  differenceScore: number | null;
+  changePercent: number | null;
+  direction: "improved" | "worsened" | "stable" | "insufficient";
+}
+
+/** 22:00 后下班与上线日的归因结果 */
+export interface ReleaseAttribution {
+  releaseDays: number;
+  afterTenDays: number;
+  releaseAfterTenDays: number;
+  releaseShare: number | null;
+  type: "release-centered" | "mixed" | "routine-spill" | "none";
+  description: string;
 }
 
 /** 固定滚动 30 天的工作压力评价 */
@@ -42,12 +79,23 @@ export interface RollingWorkloadEvaluation {
   previousRangeStart: string;
   previousRangeEnd: string;
   metrics: WorkloadMetrics;
-  afterNine: WorkloadDimensionEvaluation;
-  afterTen: WorkloadDimensionEvaluation;
+  scoreEvaluation: PressureScoreEvaluation;
+  redLineReasons: string[];
   overallLevel: WorkloadLevel;
   overallLabel: string;
-  comparison: DepartureComparison;
+  releaseAttribution: ReleaseAttribution;
+  comparison: PressureComparison;
 }
+
+/** 晚下班时间档位与每日压力分的统一定义 */
+const DEPARTURE_BAND_DEFINITIONS: DepartureBandDefinition[] = [
+  { id: "nine-to-nine-thirty", label: "21:00–21:29", description: "相对轻松", score: 1 },
+  { id: "nine-thirty-to-ten", label: "21:30–21:59", description: "事情比较多", score: 2 },
+  { id: "ten-to-eleven", label: "22:00–22:59", description: "事情非常多", score: 4 },
+  { id: "eleven-to-eleven-thirty", label: "23:00–23:29", description: "高强度加班", score: 6 },
+  { id: "eleven-thirty-to-midnight", label: "23:30–23:59", description: "极高强度加班", score: 8 },
+  { id: "overnight", label: "次日 00:00 及以后", description: "跨夜加班", score: 12 },
+];
 
 /** 工作压力等级从轻到重的排序 */
 const LEVEL_RANK: Record<Exclude<WorkloadLevel, "insufficient">, number> = {
@@ -71,15 +119,9 @@ function calculateRatio(count: number, total: number): number | null {
   return total > 0 ? Math.round(count / total * 100) : null;
 }
 
-/** 计算分钟列表的中位数，降低偶发跨夜对趋势判断的影响 */
-function calculateMedian(values: number[]): number | null {
-  if (values.length === 0) return null;
-  /** 不修改原列表的升序分钟值 */
-  const sortedValues = [...values].sort((left, right) => left - right);
-  /** 排序列表的中间位置 */
-  const middleIndex = Math.floor(sortedValues.length / 2);
-  if (sortedValues.length % 2 === 1) return sortedValues[middleIndex] ?? null;
-  return Math.round(((sortedValues[middleIndex - 1] ?? 0) + (sortedValues[middleIndex] ?? 0)) / 2);
+/** 将数值四舍五入到一位小数 */
+function roundToOneDecimal(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 /** 截取包含起止日期的考勤记录 */
@@ -92,71 +134,138 @@ function hasReliableDeparture(record: AttendanceRecord): record is ReliableDepar
   return record.endMinute !== null;
 }
 
-/** 统计指定记录中的九点后、十点后、跨夜和周末加班 */
+/** 判断记录是否属于已确认的跨夜加班 */
+function isOvernightDeparture(record: ReliableDepartureRecord): boolean {
+  return record.overnightState === "linked" || record.overnightState === "confirmed" || record.endMinute >= 24 * 60;
+}
+
+/** 将单日下班时间映射到互斥的晚下班档位 */
+function resolveDepartureBandId(record: ReliableDepartureRecord): DepartureBandId | null {
+  if (isOvernightDeparture(record)) return "overnight";
+  if (record.endMinute >= 23 * 60 + 30) return "eleven-thirty-to-midnight";
+  if (record.endMinute >= 23 * 60) return "eleven-to-eleven-thirty";
+  if (record.endMinute >= 22 * 60) return "ten-to-eleven";
+  if (record.endMinute >= 21 * 60 + 30) return "nine-thirty-to-ten";
+  if (record.endMinute >= 21 * 60) return "nine-to-nine-thirty";
+  return null;
+}
+
+/** 统计指定记录中的六档晚下班、红线次数与压力积分 */
 export function calculateWorkloadMetrics(records: AttendanceRecord[]): WorkloadMetrics {
   /** 可进入比例分母且拥有可信下班时间的记录 */
   const validRecords = records.filter(hasReliableDeparture);
-  /** 严格晚于 21:00 的有效记录 */
-  const afterNineDays = validRecords.filter((record) => record.endMinute > 21 * 60).length;
-  /** 严格晚于 22:00 的有效记录 */
-  const afterTenDays = validRecords.filter((record) => record.endMinute > 22 * 60).length;
-  /** 已确认或完成相邻日关联的跨夜记录 */
-  const overnightDays = validRecords.filter((record) => record.overnightState === "linked" || record.overnightState === "confirmed").length;
-  /** 周六或周日存在有效考勤的记录 */
-  const weekendWorkDays = validRecords.filter((record) => record.weekday === 6 || record.weekday === 7).length;
+  /** 每个晚下班档位的记录数索引 */
+  const bandCounts = new Map<DepartureBandId, number>(DEPARTURE_BAND_DEFINITIONS.map((definition) => [definition.id, 0]));
+  validRecords.forEach((record) => {
+    /** 当前有效记录对应的晚下班档位 */
+    const bandId = resolveDepartureBandId(record);
+    if (bandId) bandCounts.set(bandId, (bandCounts.get(bandId) ?? 0) + 1);
+  });
+  /** 六个互斥晚下班档位的完整统计 */
+  const departureBands = DEPARTURE_BAND_DEFINITIONS.map((definition) => ({
+    ...definition,
+    count: bandCounts.get(definition.id) ?? 0,
+    ratio: calculateRatio(bandCounts.get(definition.id) ?? 0, validRecords.length),
+  }));
+  /** 21:00 及以后下班的总天数 */
+  const afterNineDays = departureBands.reduce((total, band) => total + band.count, 0);
+  /** 22:00 及以后下班的总天数 */
+  const afterTenDays = departureBands.slice(2).reduce((total, band) => total + band.count, 0);
+  /** 23:00 及以后下班的总天数 */
+  const afterElevenDays = departureBands.slice(3).reduce((total, band) => total + band.count, 0);
+  /** 23:30 及以后下班的总天数 */
+  const afterElevenThirtyDays = departureBands.slice(4).reduce((total, band) => total + band.count, 0);
+  /** 跨夜档位的总天数 */
+  const overnightDays = bandCounts.get("overnight") ?? 0;
+  /** 原始压力分总和 */
+  const rawPressureScore = departureBands.reduce((total, band) => total + band.count * band.score, 0);
+  /** 折算为 20 个有效出勤日的标准化压力分 */
+  const standardizedPressureScore = validRecords.length > 0 ? roundToOneDecimal(rawPressureScore / validRecords.length * 20) : 0;
   return {
     validAttendanceDays: validRecords.length,
+    departureBands,
     afterNineDays,
-    afterNineRatio: calculateRatio(afterNineDays, validRecords.length),
     afterTenDays,
-    afterTenRatio: calculateRatio(afterTenDays, validRecords.length),
+    afterElevenDays,
+    afterElevenThirtyDays,
     overnightDays,
-    overnightRatio: calculateRatio(overnightDays, validRecords.length),
-    weekendWorkDays,
+    weekendWorkDays: validRecords.filter((record) => record.weekday === 6 || record.weekday === 7).length,
+    releaseAfterTenDays: validRecords.filter((record) => record.isReleaseDay && (isOvernightDeparture(record) || record.endMinute >= 22 * 60)).length,
+    rawPressureScore,
+    standardizedPressureScore,
   };
 }
 
-/** 按用户设定区间评价近 30 天九点后下班压力 */
-function evaluateAfterNine(count: number, hasData: boolean): WorkloadDimensionEvaluation {
-  if (!hasData) return { level: "insufficient", label: LEVEL_LABELS.insufficient, count, description: "近 30 天没有有效下班记录" };
-  if (count <= 5) return { level: "relaxed", label: LEVEL_LABELS.relaxed, count, description: "平均每周约 1 天九点后下班" };
-  if (count <= 10) return { level: "moderate", label: LEVEL_LABELS.moderate, count, description: "接近每周 2 天九点后下班" };
-  if (count <= 15) return { level: "tired", label: LEVEL_LABELS.tired, count, description: "九点后下班已经较为频繁" };
-  return { level: "painful", label: LEVEL_LABELS.painful, count, description: "超过一半日期九点后下班" };
-}
-
-/** 按用户设定区间评价近 30 天十点后下班压力 */
-function evaluateAfterTen(count: number, hasData: boolean): WorkloadDimensionEvaluation {
-  if (!hasData) return { level: "insufficient", label: LEVEL_LABELS.insufficient, count, description: "近 30 天没有有效下班记录" };
-  if (count <= 2) return { level: "relaxed", label: "适中", count, description: "这个月十点后下班不超过 2 天" };
-  if (count <= 4) return { level: "tired", label: LEVEL_LABELS.tired, count, description: "几乎每周都有十点后下班" };
-  return { level: "painful", label: LEVEL_LABELS.painful, count, description: "十点后下班明显过于频繁" };
-}
-
-/** 比较两个连续 30 天窗口的下班时间中位数 */
-function compareDepartureTimes(currentRecords: AttendanceRecord[], previousRecords: AttendanceRecord[]): DepartureComparison {
-  /** 当前窗口所有有效下班分钟 */
-  const currentEndMinutes = currentRecords.filter(hasReliableDeparture).map((record) => record.endMinute);
-  /** 前一窗口所有有效下班分钟 */
-  const previousEndMinutes = previousRecords.filter(hasReliableDeparture).map((record) => record.endMinute);
-  /** 当前窗口下班时间中位数 */
-  const currentMedianMinute = calculateMedian(currentEndMinutes);
-  /** 前一窗口下班时间中位数 */
-  const previousMedianMinute = calculateMedian(previousEndMinutes);
-  if (currentEndMinutes.length < 3 || previousEndMinutes.length < 3 || currentMedianMinute === null || previousMedianMinute === null) {
-    return { currentMedianMinute, previousMedianMinute, differenceMinute: null, direction: "insufficient" };
+/** 按标准化压力分生成基础等级 */
+function evaluatePressureScore(metrics: WorkloadMetrics): PressureScoreEvaluation {
+  if (metrics.validAttendanceDays === 0) {
+    return { level: "insufficient", label: LEVEL_LABELS.insufficient, score: null, description: "近 30 天没有有效下班记录" };
   }
-  /** 当前窗口相对前一窗口的下班时间分钟差 */
-  const differenceMinute = currentMedianMinute - previousMedianMinute;
-  /** 15 分钟以内视为正常波动 */
-  const direction = Math.abs(differenceMinute) <= 15 ? "stable" : differenceMinute > 0 ? "later" : "earlier";
-  return { currentMedianMinute, previousMedianMinute, differenceMinute, direction };
+  /** 已折算到 20 个出勤日的压力分 */
+  const score = metrics.standardizedPressureScore;
+  if (score <= 5) return { level: "relaxed", label: LEVEL_LABELS.relaxed, score, description: "晚下班较少，总体轻松" };
+  if (score <= 10) return { level: "moderate", label: LEVEL_LABELS.moderate, score, description: "晚下班存在，但总体可控" };
+  if (score <= 20) return { level: "tired", label: LEVEL_LABELS.tired, score, description: "高频晚归或 22:00 后下班已经明显" };
+  return { level: "painful", label: LEVEL_LABELS.painful, score, description: "晚归频繁或存在多次极晚下班" };
 }
 
-/** 取两个压力维度中严重程度更高的综合等级 */
-function resolveOverallLevel(afterNine: WorkloadDimensionEvaluation, afterTen: WorkloadDimensionEvaluation): WorkloadLevel {
-  if (afterNine.level === "insufficient" || afterTen.level === "insufficient") return "insufficient";
-  return LEVEL_RANK[afterNine.level] >= LEVEL_RANK[afterTen.level] ? afterNine.level : afterTen.level;
+/** 根据频率与极端加班情况生成强制升级红线 */
+function resolveRedLineReasons(metrics: WorkloadMetrics): string[] {
+  /** 当前周期触发的全部压力红线 */
+  const reasons: string[] = [];
+  if (metrics.afterNineDays >= 16) reasons.push("21:00 后下班达到 16 天");
+  if (metrics.afterTenDays >= 5) reasons.push("22:00 后下班达到 5 天");
+  if (metrics.afterElevenDays >= 3) reasons.push("23:00 后下班达到 3 天");
+  if (metrics.afterElevenThirtyDays >= 2) reasons.push("23:30 后下班达到 2 天");
+  if (metrics.overnightDays >= 2) reasons.push("跨夜加班达到 2 天");
+  return reasons;
+}
+
+/** 结合积分、跨夜下限与痛苦红线得到最终评价 */
+function resolveOverallLevel(scoreLevel: WorkloadLevel, metrics: WorkloadMetrics, redLineReasons: string[]): WorkloadLevel {
+  if (scoreLevel === "insufficient") return "insufficient";
+  if (redLineReasons.length > 0) return "painful";
+  if (metrics.overnightDays === 1 && LEVEL_RANK[scoreLevel] < LEVEL_RANK.tired) return "tired";
+  return scoreLevel;
+}
+
+/** 解释 22:00 后下班是否主要由上线日造成 */
+function evaluateReleaseAttribution(records: AttendanceRecord[], metrics: WorkloadMetrics): ReleaseAttribution {
+  /** 有可信下班时间的上线日总数 */
+  const releaseDays = records.filter(hasReliableDeparture).filter((record) => record.isReleaseDay).length;
+  if (metrics.afterTenDays === 0) {
+    return { releaseDays, afterTenDays: 0, releaseAfterTenDays: 0, releaseShare: null, type: "none", description: "近 30 天没有 22:00 后下班" };
+  }
+  /** 22:00 后下班中发生在上线日的比例 */
+  const releaseShare = calculateRatio(metrics.releaseAfterTenDays, metrics.afterTenDays) ?? 0;
+  if (releaseShare >= 70) {
+    return { releaseDays, afterTenDays: metrics.afterTenDays, releaseAfterTenDays: metrics.releaseAfterTenDays, releaseShare, type: "release-centered", description: "高强度加班主要集中在上线日" };
+  }
+  if (releaseShare >= 30) {
+    return { releaseDays, afterTenDays: metrics.afterTenDays, releaseAfterTenDays: metrics.releaseAfterTenDays, releaseShare, type: "mixed", description: "上线日与日常工作共同造成晚归" };
+  }
+  return { releaseDays, afterTenDays: metrics.afterTenDays, releaseAfterTenDays: metrics.releaseAfterTenDays, releaseShare, type: "routine-spill", description: "晚归已明显扩散到非上线日" };
+}
+
+/** 比较两个连续 30 天窗口的标准化压力分 */
+function comparePressureScores(currentMetrics: WorkloadMetrics, previousMetrics: WorkloadMetrics): PressureComparison {
+  if (currentMetrics.validAttendanceDays === 0 || previousMetrics.validAttendanceDays === 0) {
+    return { currentScore: currentMetrics.validAttendanceDays > 0 ? currentMetrics.standardizedPressureScore : null, previousScore: previousMetrics.validAttendanceDays > 0 ? previousMetrics.standardizedPressureScore : null, differenceScore: null, changePercent: null, direction: "insufficient" };
+  }
+  /** 当前窗口的标准化压力分 */
+  const currentScore = currentMetrics.standardizedPressureScore;
+  /** 前一窗口的标准化压力分 */
+  const previousScore = previousMetrics.standardizedPressureScore;
+  /** 当前窗口相对前一窗口的压力分差 */
+  const differenceScore = roundToOneDecimal(currentScore - previousScore);
+  if (previousScore === 0) {
+    return { currentScore, previousScore, differenceScore, changePercent: currentScore === 0 ? 0 : null, direction: currentScore === 0 ? "stable" : "worsened" };
+  }
+  /** 当前窗口相对前一窗口的压力变化百分比 */
+  const changePercent = Math.round(differenceScore / previousScore * 100);
+  /** ±10% 以内视为正常波动 */
+  const direction = Math.abs(changePercent) <= 10 ? "stable" : changePercent > 0 ? "worsened" : "improved";
+  return { currentScore, previousScore, differenceScore, changePercent, direction };
 }
 
 /** 以今天为末日计算当前与前一连续 30 天压力评价 */
@@ -175,22 +284,25 @@ export function evaluateRollingThirtyDays(records: AttendanceRecord[], today: Da
   const previousRecords = filterDateRange(records, previousRangeStart, previousRangeEnd);
   /** 当前连续 30 天核心指标 */
   const metrics = calculateWorkloadMetrics(currentRecords);
-  /** 九点后下班压力评价 */
-  const afterNine = evaluateAfterNine(metrics.afterNineDays, metrics.validAttendanceDays > 0);
-  /** 十点后下班压力评价 */
-  const afterTen = evaluateAfterTen(metrics.afterTenDays, metrics.validAttendanceDays > 0);
-  /** 两个维度合并后的综合压力等级 */
-  const overallLevel = resolveOverallLevel(afterNine, afterTen);
+  /** 前一连续 30 天核心指标 */
+  const previousMetrics = calculateWorkloadMetrics(previousRecords);
+  /** 当前压力分对应的基础评价 */
+  const scoreEvaluation = evaluatePressureScore(metrics);
+  /** 当前周期触发的强制升级红线 */
+  const redLineReasons = resolveRedLineReasons(metrics);
+  /** 结合积分与红线的最终压力等级 */
+  const overallLevel = resolveOverallLevel(scoreEvaluation.level, metrics, redLineReasons);
   return {
     rangeStart,
     rangeEnd,
     previousRangeStart,
     previousRangeEnd,
     metrics,
-    afterNine,
-    afterTen,
+    scoreEvaluation,
+    redLineReasons,
     overallLevel,
     overallLabel: LEVEL_LABELS[overallLevel],
-    comparison: compareDepartureTimes(currentRecords, previousRecords),
+    releaseAttribution: evaluateReleaseAttribution(currentRecords, metrics),
+    comparison: comparePressureScores(metrics, previousMetrics),
   };
 }

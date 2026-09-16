@@ -14,47 +14,49 @@ import { renderDashboardToolbar, type DashboardFilters } from "../ui/dashboard-t
 import { ImportPreviewModal } from "../ui/import-preview-modal";
 import { renderSummaryCards } from "../ui/summary-cards";
 import { renderWorkloadEvaluation } from "../ui/workload-evaluation-panel";
+import { formatLocalIsoDate, shiftIsoDate } from "../utils/date";
 
-/** 仪表盘月份输入允许的年月格式 */
-const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** 仪表盘日期输入允许的 ISO 日期格式 */
+const DATE_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
-/** 返回当前本地月份，作为无数据时的默认筛选区间 */
-function getCurrentMonth(): string {
-  /** 当前本地时间 */
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+/** 判断字符串是否为真实存在的 ISO 自然日期 */
+function isValidIsoDate(date: string): boolean {
+  if (!DATE_PATTERN.test(date)) {
+    return false;
+  }
+  /** 按 UTC 解析后用于排除 2 月 31 日等无效日期的标准值 */
+  const normalizedDate = new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10);
+  return normalizedDate === date;
 }
 
-/** 根据已有记录边界生成初始月份筛选条件 */
-function createInitialFilters(repository: PluginDataRepository): DashboardFilters {
-  /** 当前仓储中按日期倒序排列的全部记录 */
-  const records = repository.list();
-  /** 没有真实数据时使用的当前月份 */
-  const fallbackMonth = getCurrentMonth();
+/** 生成含今天在内的近 30 个自然日默认筛选条件 */
+function createInitialFilters(): DashboardFilters {
+  /** 默认统计区间的当天结束日期 */
+  const endDate = formatLocalIsoDate(new Date());
   return {
-    startMonth: records[records.length - 1]?.date.slice(0, 7) ?? fallbackMonth,
-    endMonth: records[0]?.date.slice(0, 7) ?? fallbackMonth,
+    startDate: shiftIsoDate(endDate, -29),
+    endDate,
   };
 }
 
-/** 补齐空月份并将反向区间调整为从早到晚 */
+/** 补齐空日期并将反向区间调整为从早到晚 */
 function normalizeFilters(filters: DashboardFilters): DashboardFilters {
-  /** 当前年月格式合法时可作为另一端的后备月份 */
-  const currentMonth = getCurrentMonth();
-  /** 格式合法的起始月份 */
-  const validStartMonth = MONTH_PATTERN.test(filters.startMonth) ? filters.startMonth : undefined;
-  /** 格式合法的结束月份 */
-  const validEndMonth = MONTH_PATTERN.test(filters.endMonth) ? filters.endMonth : undefined;
-  /** 补齐后的起始月份 */
-  const startMonth = validStartMonth ?? validEndMonth ?? currentMonth;
-  /** 补齐后的结束月份 */
-  const endMonth = validEndMonth ?? validStartMonth ?? currentMonth;
-  return startMonth <= endMonth ? { startMonth, endMonth } : { startMonth: endMonth, endMonth: startMonth };
+  /** 输入均无效时使用的近 30 天默认区间 */
+  const defaultFilters = createInitialFilters();
+  /** 格式与日期均合法的起始日期 */
+  const validStartDate = isValidIsoDate(filters.startDate) ? filters.startDate : undefined;
+  /** 格式与日期均合法的结束日期 */
+  const validEndDate = isValidIsoDate(filters.endDate) ? filters.endDate : undefined;
+  /** 补齐后的起始日期 */
+  const startDate = validStartDate ?? validEndDate ?? defaultFilters.startDate;
+  /** 补齐后的结束日期 */
+  const endDate = validEndDate ?? validStartDate ?? defaultFilters.endDate;
+  return startDate <= endDate ? { startDate, endDate } : { startDate: endDate, endDate: startDate };
 }
 
-/** 将界面月份条件转换为仓储日期查询 */
+/** 将界面日期条件转换为仓储日期查询 */
 function createAttendanceQuery(filters: DashboardFilters): AttendanceQuery {
-  return { startDate: `${filters.startMonth}-01`, endDate: `${filters.endMonth}-31` };
+  return { startDate: filters.startDate, endDate: filters.endDate };
 }
 
 /** 聚焦晚下班、跨夜和周末加班的 Obsidian 压力看板 */
@@ -62,7 +64,7 @@ export class AttendanceDashboardView extends ItemView {
   /** 当前仪表盘中需要随重绘或关闭清理的图表控制器 */
   private chartController: DashboardChartController | null = null;
 
-  /** 用户当前选择的月份区间 */
+  /** 用户当前选择的日期区间 */
   private filters: DashboardFilters;
 
   /** 创建仪表盘视图并注入已初始化的本地仓储 */
@@ -71,7 +73,7 @@ export class AttendanceDashboardView extends ItemView {
     private readonly repository: PluginDataRepository,
   ) {
     super(leaf);
-    this.filters = normalizeFilters(createInitialFilters(repository));
+    this.filters = normalizeFilters(createInitialFilters());
   }
 
   /** 返回 Obsidian 用于识别仪表盘的类型 */
@@ -127,7 +129,7 @@ export class AttendanceDashboardView extends ItemView {
       renderDashboardToolbar(contentEl, this.filters, {
         onImport: () => {
           new ImportPreviewModal(this.app, this.repository, () => {
-            this.filters = normalizeFilters(createInitialFilters(this.repository));
+            this.filters = normalizeFilters(createInitialFilters());
             this.renderDashboard();
           }).open();
         },
@@ -142,7 +144,7 @@ export class AttendanceDashboardView extends ItemView {
 
       /** 不受所选区间影响的固定近 30 天压力评价 */
       const rollingEvaluation = evaluateRollingThirtyDays(allRecords);
-      /** 当前筛选记录映射得到的四项核心指标卡 */
+      /** 当前筛选记录映射得到的六档晚下班指标卡 */
       const summaryCards = mapWorkloadSummaryCards(records);
       /** 当前筛选记录映射得到的下班时间折线点 */
       const departurePoints = mapDepartureTrendPoints(records);

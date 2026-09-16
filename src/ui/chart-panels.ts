@@ -21,8 +21,11 @@ interface ChartColors {
   muted: string;
   border: string;
   accent: string;
-  afterNine: string;
-  afterTen: string;
+  nine: string;
+  nineThirty: string;
+  ten: string;
+  eleven: string;
+  elevenThirty: string;
   overnight: string;
   weekend: string;
 }
@@ -38,9 +41,12 @@ function readChartColors(containerEl: HTMLElement): ChartColors {
     muted: readVariable("--text-muted", "#999999"),
     border: readVariable("--background-modifier-border", "#3d3d3d"),
     accent: readVariable("--interactive-accent", "#7c6ff0"),
-    afterNine: "#d99614",
-    afterTen: "#e66a2c",
-    overnight: "#dc4c4c",
+    nine: "#c89b24",
+    nineThirty: "#d98218",
+    ten: "#e66a2c",
+    eleven: "#e0523f",
+    elevenThirty: "#dc3f53",
+    overnight: "#b52a47",
     weekend: "#2f9e72",
   };
 }
@@ -48,8 +54,11 @@ function readChartColors(containerEl: HTMLElement): ChartColors {
 /** 返回单个下班趋势点的风险颜色 */
 function getPointColor(point: DepartureTrendPointViewModel, colors: ChartColors): string {
   if (point.tone === "overnight") return colors.overnight;
-  if (point.tone === "after-ten") return colors.afterTen;
-  if (point.tone === "after-nine") return colors.afterNine;
+  if (point.tone === "eleven-thirty-to-midnight") return colors.elevenThirty;
+  if (point.tone === "eleven-to-eleven-thirty") return colors.eleven;
+  if (point.tone === "ten-to-eleven") return colors.ten;
+  if (point.tone === "nine-thirty-to-ten") return colors.nineThirty;
+  if (point.tone === "nine-to-nine-thirty") return colors.nine;
   if (point.isWeekend) return colors.weekend;
   return colors.accent;
 }
@@ -74,8 +83,8 @@ function renderDepartureChart(containerEl: HTMLElement, points: DepartureTrendPo
   const endMinutes = points.flatMap((point) => point.endMinute === null ? [] : [point.endMinute]);
   /** 根据最早下班记录动态调整的纵轴下限 */
   const axisMinimum = Math.min(18 * 60, ...endMinutes.map((minute) => Math.floor(minute / 60) * 60));
-  /** 根据跨夜记录动态扩展的纵轴上限 */
-  const axisMaximum = Math.max(23 * 60, ...endMinutes.map((minute) => Math.ceil((minute + 30) / 60) * 60));
+  /** 保证六个参考节点可见并根据跨夜记录动态扩展的纵轴上限 */
+  const axisMaximum = Math.max(24 * 60, ...endMinutes.map((minute) => Math.ceil((minute + 30) / 60) * 60));
   /** 下班折线图完整配置 */
   const option: EChartsCoreOption = {
     animationDuration: 320,
@@ -115,8 +124,12 @@ function renderDepartureChart(containerEl: HTMLElement, points: DepartureTrendPo
         symbol: "none",
         silent: true,
         data: [
-          { yAxis: 21 * 60, name: "21:00", lineStyle: { color: colors.afterNine, type: "dashed" }, label: { color: colors.afterNine, formatter: "21:00", position: "insideEndTop" } },
-          { yAxis: 22 * 60, name: "22:00", lineStyle: { color: colors.afterTen, type: "dashed" }, label: { color: colors.afterTen, formatter: "22:00", position: "insideEndTop" } },
+          { yAxis: 21 * 60, name: "21:00", lineStyle: { color: colors.nine, type: "dashed" }, label: { color: colors.nine, formatter: "21:00", position: "insideEndTop" } },
+          { yAxis: 21 * 60 + 30, name: "21:30", lineStyle: { color: colors.nineThirty, type: "dashed" }, label: { color: colors.nineThirty, formatter: "21:30", position: "insideEndBottom" } },
+          { yAxis: 22 * 60, name: "22:00", lineStyle: { color: colors.ten, type: "dashed" }, label: { color: colors.ten, formatter: "22:00", position: "insideEndTop" } },
+          { yAxis: 23 * 60, name: "23:00", lineStyle: { color: colors.eleven, type: "dashed" }, label: { color: colors.eleven, formatter: "23:00", position: "insideEndTop" } },
+          { yAxis: 23 * 60 + 30, name: "23:30", lineStyle: { color: colors.elevenThirty, type: "dashed" }, label: { color: colors.elevenThirty, formatter: "23:30", position: "insideEndBottom" } },
+          { yAxis: 24 * 60, name: "00:00+", lineStyle: { color: colors.overnight, type: "dashed" }, label: { color: colors.overnight, formatter: "00:00+", position: "insideEndTop" } },
         ],
       },
     }],
@@ -161,7 +174,7 @@ export function renderWorkloadCharts(
   heatmapCells: RollingHeatmapCellViewModel[],
 ): DashboardChartController {
   /** 下班时间趋势图面板内容 */
-  const departureContentEl = createChartPanel(containerEl, "每天下班时间", "折线断点表示无有效下班时间；黄色和橙色虚线分别为 21:00、22:00。");
+  const departureContentEl = createChartPanel(containerEl, "每天下班时间", "折线断点表示无有效下班时间；虚线依次标记 21:00、21:30、22:00、23:00、23:30 和跨夜。");
   departureContentEl.addClass("otv-echarts-departure");
   /** 由所选时间范围 ViewModel 初始化的下班折线图 */
   const departureChart = renderDepartureChart(departureContentEl, departurePoints);
@@ -170,7 +183,7 @@ export function renderWorkloadCharts(
   resizeObserver.observe(departureContentEl);
 
   /** 近 30 天下班热力图面板内容 */
-  const heatmapContentEl = createChartPanel(containerEl, "近 30 天下班热力", "浅色为 21:00 前，黄色为 21:00 后，橙色为 22:00 后，红色为跨夜，绿色边框为周末。");
+  const heatmapContentEl = createChartPanel(containerEl, "近 30 天下班热力", "颜色由浅至深表示 21:00 后的六档下班压力，绿色边框为周末。");
   renderRollingHeatmap(heatmapContentEl, heatmapCells);
   return createDashboardChartController(departureChart, resizeObserver);
 }

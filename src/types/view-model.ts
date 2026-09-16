@@ -25,7 +25,7 @@ export interface DepartureTrendPointViewModel {
   weekday: string;
   endMinute: number | null;
   endLabel: string;
-  tone: "normal" | "after-nine" | "after-ten" | "overnight" | "missing";
+  tone: "normal" | "nine-to-nine-thirty" | "nine-thirty-to-ten" | "ten-to-eleven" | "eleven-to-eleven-thirty" | "eleven-thirty-to-midnight" | "overnight" | "missing";
   isWeekend: boolean;
 }
 
@@ -67,7 +67,7 @@ export interface RollingHeatmapCellViewModel {
   dateLabel: string;
   weekdayLabel: string;
   endLabel: string;
-  tone: "before-nine" | "after-nine" | "after-ten" | "overnight" | "missing";
+  tone: "before-nine" | "nine-to-nine-thirty" | "nine-thirty-to-ten" | "ten-to-eleven" | "eleven-to-eleven-thirty" | "eleven-thirty-to-midnight" | "overnight" | "missing";
   isWeekend: boolean;
   label: string;
 }

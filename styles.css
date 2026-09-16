@@ -107,7 +107,7 @@
 
 .otv-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   max-width: 1320px;
   margin: 0 auto 18px;
@@ -193,6 +193,10 @@
   border: 1px solid var(--background-modifier-border-hover);
   border-radius: 11px;
   background: color-mix(in srgb, var(--background-secondary) 72%, transparent);
+}
+
+.otv-evaluation-detail--wide {
+  grid-column: 1 / -1;
 }
 
 .otv-evaluation-detail span,
@@ -345,16 +349,28 @@
   font-variant-numeric: tabular-nums;
 }
 
-.otv-rolling-heatmap__cell--after-nine {
-  background: color-mix(in srgb, var(--otv-warning) 24%, var(--background-primary));
+.otv-rolling-heatmap__cell--nine-to-nine-thirty {
+  background: color-mix(in srgb, #c89b24 20%, var(--background-primary));
 }
 
-.otv-rolling-heatmap__cell--after-ten {
-  background: color-mix(in srgb, #e66a2c 34%, var(--background-primary));
+.otv-rolling-heatmap__cell--nine-thirty-to-ten {
+  background: color-mix(in srgb, #d98218 26%, var(--background-primary));
+}
+
+.otv-rolling-heatmap__cell--ten-to-eleven {
+  background: color-mix(in srgb, #e66a2c 32%, var(--background-primary));
+}
+
+.otv-rolling-heatmap__cell--eleven-to-eleven-thirty {
+  background: color-mix(in srgb, #e0523f 38%, var(--background-primary));
+}
+
+.otv-rolling-heatmap__cell--eleven-thirty-to-midnight {
+  background: color-mix(in srgb, #dc3f53 44%, var(--background-primary));
 }
 
 .otv-rolling-heatmap__cell--overnight {
-  background: color-mix(in srgb, var(--otv-danger) 42%, var(--background-primary));
+  background: color-mix(in srgb, #b52a47 52%, var(--background-primary));
 }
 
 .otv-rolling-heatmap__cell--missing {

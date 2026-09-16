@@ -1,7 +1,9 @@
 /** 仪表盘工具栏当前筛选条件 */
 export interface DashboardFilters {
-  startMonth: string;
-  endMonth: string;
+  /** 统计区间的起始日期 */
+  startDate: string;
+  /** 统计区间的结束日期 */
+  endDate: string;
 }
 
 /** 仪表盘工具栏向视图暴露的交互回调 */
@@ -24,25 +26,25 @@ export function renderDashboardToolbar(
   const periodGroupEl = toolbarEl.createDiv({ cls: "otv-toolbar__group" });
   periodGroupEl.createSpan({ cls: "otv-toolbar__label", text: "统计区间" });
 
-  /** 可交互的起始月份输入 */
+  /** 可交互的起始日期输入 */
   const startInputEl = periodGroupEl.createEl("input", {
     cls: "otv-input",
-    attr: { type: "month", value: filters.startMonth, "aria-label": "起始月份" },
+    attr: { type: "date", value: filters.startDate, "aria-label": "起始日期" },
   });
 
   periodGroupEl.createSpan({ cls: "otv-toolbar__separator", text: "至" });
 
-  /** 可交互的结束月份输入 */
+  /** 可交互的结束日期输入 */
   const endInputEl = periodGroupEl.createEl("input", {
     cls: "otv-input",
-    attr: { type: "month", value: filters.endMonth, "aria-label": "结束月份" },
+    attr: { type: "date", value: filters.endDate, "aria-label": "结束日期" },
   });
 
   /** 将输入控件中的最新值同步给仪表盘视图 */
   const notifyFiltersChange = (): void => {
     callbacks.onFiltersChange({
-      startMonth: startInputEl.value,
-      endMonth: endInputEl.value,
+      startDate: startInputEl.value,
+      endDate: endInputEl.value,
     });
   };
   startInputEl.onchange = notifyFiltersChange;

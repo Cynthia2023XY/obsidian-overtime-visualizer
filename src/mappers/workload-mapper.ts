@@ -12,24 +12,27 @@ function formatRatio(ratio: number | null, denominator: number): string {
   return ratio === null ? "有效下班数据不足" : `占 ${denominator} 个有效出勤日的 ${ratio}%`;
 }
 
-/** 将指定范围记录映射为四项核心首屏指标 */
+/** 将指定范围记录映射为六档互斥晚下班指标 */
 export function mapWorkloadSummaryCards(records: AttendanceRecord[]): SummaryCardViewModel[] {
   /** 指定范围的工作压力核心指标 */
   const metrics = calculateWorkloadMetrics(records);
-  return [
-    { label: "21:00 后下班", value: `${metrics.afterNineDays} 天`, detail: formatRatio(metrics.afterNineRatio, metrics.validAttendanceDays), tone: metrics.afterNineDays > 10 ? "danger" : "warning" },
-    { label: "22:00 后下班", value: `${metrics.afterTenDays} 天`, detail: formatRatio(metrics.afterTenRatio, metrics.validAttendanceDays), tone: metrics.afterTenDays > 2 ? "danger" : "warning" },
-    { label: "跨夜加班", value: `${metrics.overnightDays} 天`, detail: formatRatio(metrics.overnightRatio, metrics.validAttendanceDays), tone: metrics.overnightDays > 0 ? "danger" : "neutral" },
-    { label: "周末加班", value: `${metrics.weekendWorkDays} 天`, detail: "仅统计周六、周日的有效考勤", tone: metrics.weekendWorkDays > 0 ? "warning" : "neutral" },
-  ];
+  return metrics.departureBands.map((band) => ({
+    label: band.label,
+    value: `${band.count} 天`,
+    detail: `${band.description} · ${formatRatio(band.ratio, metrics.validAttendanceDays)}`,
+    tone: band.count === 0 ? "neutral" : band.score >= 6 ? "danger" : band.score >= 2 ? "warning" : "positive",
+  }));
 }
 
 /** 判断下班时间在折线图和热力图中的颜色等级 */
 function resolveDepartureTone(record: AttendanceRecord | undefined): DepartureTrendPointViewModel["tone"] {
   if (!record || record.endMinute === null) return "missing";
   if (record.overnightState === "linked" || record.overnightState === "confirmed" || record.endMinute >= 24 * 60) return "overnight";
-  if (record.endMinute > 22 * 60) return "after-ten";
-  if (record.endMinute > 21 * 60) return "after-nine";
+  if (record.endMinute >= 23 * 60 + 30) return "eleven-thirty-to-midnight";
+  if (record.endMinute >= 23 * 60) return "eleven-to-eleven-thirty";
+  if (record.endMinute >= 22 * 60) return "ten-to-eleven";
+  if (record.endMinute >= 21 * 60 + 30) return "nine-thirty-to-ten";
+  if (record.endMinute >= 21 * 60) return "nine-to-nine-thirty";
   return "normal";
 }
 

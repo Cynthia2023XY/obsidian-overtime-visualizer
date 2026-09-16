@@ -3,12 +3,12 @@ import { ATTENDANCE_RECORD_MOCKS } from "../mocks/attendance-records";
 import { mapDepartureTrendPoints, mapRollingHeatmapCells, mapWorkloadSummaryCards } from "./workload-mapper";
 
 describe("工作压力 ViewModel 映射", () => {
-  it("首屏只生成九点后、十点后、跨夜和周末四项指标", () => {
-    /** 代表性数据对应的核心指标卡 */
+  it("首屏生成六个互斥的晚下班时间档位", () => {
+    /** 代表性数据对应的六档指标卡 */
     const cards = mapWorkloadSummaryCards(ATTENDANCE_RECORD_MOCKS);
 
-    expect(cards.map((card) => card.label)).toEqual(["21:00 后下班", "22:00 后下班", "跨夜加班", "周末加班"]);
-    expect(cards).toHaveLength(4);
+    expect(cards.map((card) => card.label)).toEqual(["21:00–21:29", "21:30–21:59", "22:00–22:59", "23:00–23:29", "23:30–23:59", "次日 00:00 及以后"]);
+    expect(cards).toHaveLength(6);
   });
 
   it("下班趋势过滤无打卡日期，并保留周末打卡和待修正下班时间", () => {
