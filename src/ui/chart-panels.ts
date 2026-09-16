@@ -2,6 +2,7 @@ import { LineChart } from "echarts/charts";
 import { GridComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
 import { init, use, type ECharts, type EChartsCoreOption } from "echarts/core";
 import { SVGRenderer } from "echarts/renderers";
+import type { MonthlyPressureTrendPoint } from "../analytics/workload-evaluation";
 import type { DepartureTrendPointViewModel, RollingHeatmapCellViewModel } from "../types/view-model";
 import { formatClockMinute } from "../utils/time";
 import { createDashboardChartController, type DashboardChartController } from "./chart-controller";
@@ -12,6 +13,11 @@ use(DEPARTURE_ECHARTS_MODULES);
 
 /** ECharts tooltip 中需要使用的最小数据结构 */
 interface DepartureTooltipParam {
+  dataIndex: number;
+}
+
+/** 月度压力折线图 tooltip 需要的最小数据结构 */
+interface MonthlyPressureTooltipParam {
   dataIndex: number;
 }
 
@@ -88,7 +94,7 @@ function renderDepartureChart(containerEl: HTMLElement, points: DepartureTrendPo
   /** 下班折线图完整配置 */
   const option: EChartsCoreOption = {
     animationDuration: 320,
-    grid: { left: 62, right: 58, top: 30, bottom: 54 },
+    grid: { left: 62, right: 76, top: 30, bottom: 54 },
     tooltip: {
       trigger: "axis",
       formatter: (params: unknown) => formatDepartureTooltip(params as DepartureTooltipParam[], points),
@@ -124,14 +130,67 @@ function renderDepartureChart(containerEl: HTMLElement, points: DepartureTrendPo
         symbol: "none",
         silent: true,
         data: [
-          { yAxis: 21 * 60, name: "21:00", lineStyle: { color: colors.nine, type: "dashed" }, label: { color: colors.nine, formatter: "21:00", position: "insideEndTop" } },
-          { yAxis: 21 * 60 + 30, name: "21:30", lineStyle: { color: colors.nineThirty, type: "dashed" }, label: { color: colors.nineThirty, formatter: "21:30", position: "insideEndBottom" } },
-          { yAxis: 22 * 60, name: "22:00", lineStyle: { color: colors.ten, type: "dashed" }, label: { color: colors.ten, formatter: "22:00", position: "insideEndTop" } },
-          { yAxis: 23 * 60, name: "23:00", lineStyle: { color: colors.eleven, type: "dashed" }, label: { color: colors.eleven, formatter: "23:00", position: "insideEndTop" } },
-          { yAxis: 23 * 60 + 30, name: "23:30", lineStyle: { color: colors.elevenThirty, type: "dashed" }, label: { color: colors.elevenThirty, formatter: "23:30", position: "insideEndBottom" } },
-          { yAxis: 24 * 60, name: "00:00+", lineStyle: { color: colors.overnight, type: "dashed" }, label: { color: colors.overnight, formatter: "00:00+", position: "insideEndTop" } },
+          { yAxis: 21 * 60, name: "21:00", lineStyle: { color: colors.nine, type: "dashed" }, label: { color: colors.nine, formatter: "21:00", position: "insideEndTop", fontSize: 11, backgroundColor: "rgba(24, 26, 32, 0.82)", padding: [2, 4], borderRadius: 3 } },
+          { yAxis: 21 * 60 + 30, name: "21:30", lineStyle: { color: colors.nineThirty, type: "dashed" }, label: { color: colors.nineThirty, formatter: "21:30", position: "insideEndTop", fontSize: 11, backgroundColor: "rgba(24, 26, 32, 0.82)", padding: [2, 4], borderRadius: 3 } },
+          { yAxis: 22 * 60, name: "22:00", lineStyle: { color: colors.ten, type: "dashed" }, label: { color: colors.ten, formatter: "22:00", position: "insideEndTop", fontSize: 11, backgroundColor: "rgba(24, 26, 32, 0.82)", padding: [2, 4], borderRadius: 3 } },
+          { yAxis: 23 * 60, name: "23:00", lineStyle: { color: colors.eleven, type: "dashed" }, label: { color: colors.eleven, formatter: "23:00", position: "insideEndTop", fontSize: 11, backgroundColor: "rgba(24, 26, 32, 0.82)", padding: [2, 4], borderRadius: 3 } },
+          { yAxis: 23 * 60 + 30, name: "23:30", lineStyle: { color: colors.elevenThirty, type: "dashed" }, label: { color: colors.elevenThirty, formatter: "23:30", position: "insideEndTop", fontSize: 11, backgroundColor: "rgba(24, 26, 32, 0.82)", padding: [2, 4], borderRadius: 3 } },
+          { yAxis: 24 * 60, name: "00:00+", lineStyle: { color: colors.overnight, type: "dashed" }, label: { color: colors.overnight, formatter: "00:00+", position: "insideEndTop", fontSize: 11, backgroundColor: "rgba(24, 26, 32, 0.82)", padding: [2, 4], borderRadius: 3 } },
         ],
       },
+    }],
+  };
+  chart.setOption(option);
+  return chart;
+}
+
+/** 格式化月度压力指数 tooltip */
+function formatMonthlyPressureTooltip(rawParams: MonthlyPressureTooltipParam | MonthlyPressureTooltipParam[], points: MonthlyPressureTrendPoint[]): string {
+  /** tooltip 事件中的首个系列参数 */
+  const param = Array.isArray(rawParams) ? rawParams[0] : rawParams;
+  /** tooltip 当前指向的月度压力数据 */
+  const point = param ? points[param.dataIndex] : undefined;
+  if (!point) return "";
+  return `<strong>${point.month}</strong><br>压力指数 ${point.score} 分<br>有效出勤 ${point.validAttendanceDays} 天`;
+}
+
+/** 初始化全部自然月的压力指数折线图 */
+function renderMonthlyPressureChart(containerEl: HTMLElement, points: MonthlyPressureTrendPoint[]): ECharts {
+  /** 月度压力图使用的主题颜色 */
+  const colors = readChartColors(containerEl);
+  /** 月度压力指数图表实例 */
+  const chart = init(containerEl, undefined, { renderer: "svg" });
+  /** 月度压力折线图完整配置 */
+  const option: EChartsCoreOption = {
+    animationDuration: 320,
+    grid: { left: 54, right: 30, top: 34, bottom: 48 },
+    tooltip: {
+      trigger: "axis",
+      formatter: (params: unknown) => formatMonthlyPressureTooltip(params as MonthlyPressureTooltipParam[], points),
+    },
+    xAxis: {
+      type: "category",
+      boundaryGap: true,
+      data: points.map((point) => point.label),
+      axisLabel: { color: colors.muted, hideOverlap: true },
+      axisLine: { lineStyle: { color: colors.border } },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      axisLabel: { color: colors.muted, formatter: "{value} 分" },
+      splitLine: { lineStyle: { color: colors.border, type: "dashed" } },
+    },
+    series: [{
+      name: "压力指数",
+      type: "line",
+      smooth: 0.2,
+      symbol: "circle",
+      symbolSize: 8,
+      lineStyle: { color: colors.accent, width: 3 },
+      itemStyle: { color: colors.accent },
+      areaStyle: { color: colors.accent, opacity: 0.08 },
+      data: points.map((point) => point.score),
     }],
   };
   chart.setOption(option);
@@ -172,18 +231,29 @@ export function renderWorkloadCharts(
   containerEl: HTMLElement,
   departurePoints: DepartureTrendPointViewModel[],
   heatmapCells: RollingHeatmapCellViewModel[],
+  monthlyPressurePoints: MonthlyPressureTrendPoint[],
 ): DashboardChartController {
+  /** 全部自然月压力指数走势面板内容 */
+  const monthlyPressureContentEl = createChartPanel(containerEl, "月度压力指数走势", "按自然月统计，并统一折算为 20 个有效出勤日的压力分。当前月数据会随考勤更新。 ");
+  monthlyPressureContentEl.addClass("otv-echarts-monthly-pressure");
+  /** 全部月份压力指数初始化得到的折线图 */
+  const monthlyPressureChart = renderMonthlyPressureChart(monthlyPressureContentEl, monthlyPressurePoints);
+
   /** 下班时间趋势图面板内容 */
   const departureContentEl = createChartPanel(containerEl, "每天下班时间", "折线断点表示无有效下班时间；虚线依次标记 21:00、21:30、22:00、23:00、23:30 和跨夜。");
   departureContentEl.addClass("otv-echarts-departure");
   /** 由所选时间范围 ViewModel 初始化的下班折线图 */
   const departureChart = renderDepartureChart(departureContentEl, departurePoints);
   /** 负责跟踪图表容器尺寸变化的观察器 */
-  const resizeObserver = new ResizeObserver(() => departureChart.resize());
+  const resizeObserver = new ResizeObserver(() => {
+    monthlyPressureChart.resize();
+    departureChart.resize();
+  });
+  resizeObserver.observe(monthlyPressureContentEl);
   resizeObserver.observe(departureContentEl);
 
   /** 近 30 天下班热力图面板内容 */
   const heatmapContentEl = createChartPanel(containerEl, "近 30 天下班热力", "颜色由浅至深表示 21:00 后的六档下班压力，绿色边框为周末。");
   renderRollingHeatmap(heatmapContentEl, heatmapCells);
-  return createDashboardChartController(departureChart, resizeObserver);
+  return createDashboardChartController([monthlyPressureChart, departureChart], resizeObserver);
 }

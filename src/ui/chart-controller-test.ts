@@ -30,4 +30,30 @@ describe("图表生命周期控制器", () => {
     expect(disconnect).toHaveBeenCalledOnce();
     expect(dispose).toHaveBeenCalledOnce();
   });
+
+  it("统一控制多个仪表盘图表", () => {
+    /** 第一个图表的尺寸更新函数 */
+    const firstResize = vi.fn();
+    /** 第一个图表的销毁函数 */
+    const firstDispose = vi.fn();
+    /** 第二个图表的尺寸更新函数 */
+    const secondResize = vi.fn();
+    /** 第二个图表的销毁函数 */
+    const secondDispose = vi.fn();
+    /** 多图表共用的观察器断开函数 */
+    const disconnect = vi.fn();
+    /** 待验证的多图表生命周期控制器 */
+    const controller = createDashboardChartController([
+      { resize: firstResize, dispose: firstDispose },
+      { resize: secondResize, dispose: secondDispose },
+    ], { disconnect });
+
+    controller.resize();
+    controller.destroy();
+    expect(firstResize).toHaveBeenCalledOnce();
+    expect(secondResize).toHaveBeenCalledOnce();
+    expect(firstDispose).toHaveBeenCalledOnce();
+    expect(secondDispose).toHaveBeenCalledOnce();
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
 });

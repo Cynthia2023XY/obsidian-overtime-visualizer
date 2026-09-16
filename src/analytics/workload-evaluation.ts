@@ -30,9 +30,18 @@ export interface DepartureBandMetric extends DepartureBandDefinition {
   ratio: number | null;
 }
 
+/** 压力指数中单个计分来源的贡献 */
+export interface PressureScoreContribution {
+  id: DepartureBandId | "weekend";
+  label: string;
+  score: number;
+}
+
 /** 指定时间段内与下班压力直接相关的统计结果 */
 export interface WorkloadMetrics {
   validAttendanceDays: number;
+  averageDepartureMinute: number | null;
+  averageDepartureSampleDays: number;
   departureBands: DepartureBandMetric[];
   afterNineDays: number;
   afterTenDays: number;
@@ -41,8 +50,17 @@ export interface WorkloadMetrics {
   overnightDays: number;
   weekendWorkDays: number;
   releaseAfterTenDays: number;
+  pressureContributions: PressureScoreContribution[];
   rawPressureScore: number;
   standardizedPressureScore: number;
+}
+
+/** 单个自然月的压力指数趋势点 */
+export interface MonthlyPressureTrendPoint {
+  month: string;
+  label: string;
+  score: number;
+  validAttendanceDays: number;
 }
 
 /** 近 30 天积分换算得到的基础压力评价 */
@@ -177,23 +195,67 @@ export function calculateWorkloadMetrics(records: AttendanceRecord[]): WorkloadM
   const afterElevenThirtyDays = departureBands.slice(4).reduce((total, band) => total + band.count, 0);
   /** 跨夜档位的总天数 */
   const overnightDays = bandCounts.get("overnight") ?? 0;
-  /** 原始压力分总和 */
-  const rawPressureScore = departureBands.reduce((total, band) => total + band.count * band.score, 0);
+  /** 周一至周五且拥有可信下班时间的记录 */
+  const weekdayRecords = validRecords.filter((record) => record.weekday >= 1 && record.weekday <= 5);
+  /** 周六、周日存在有效考勤的加班记录 */
+  const weekendRecords = validRecords.filter((record) => record.weekday === 6 || record.weekday === 7);
+  /** 工作日晚归各档位产生的压力分 */
+  const pressureContributions: PressureScoreContribution[] = DEPARTURE_BAND_DEFINITIONS.map((definition) => ({
+    id: definition.id,
+    label: definition.label,
+    score: weekdayRecords.filter((record) => resolveDepartureBandId(record) === definition.id).length * definition.score,
+  }));
+  pressureContributions.push({ id: "weekend", label: "周末加班", score: weekendRecords.length * 6 });
+  /** 工作日晚归分与周末固定分合计得到的原始压力分 */
+  const rawPressureScore = pressureContributions.reduce((total, contribution) => total + contribution.score, 0);
+  /** 用于计算平均下班时间的周一至周四有效记录 */
+  const averageDepartureRecords = validRecords.filter((record) => record.weekday >= 1 && record.weekday <= 4);
+  /** 周一至周四的平均下班分钟，跨夜记录保留次日偏移 */
+  const averageDepartureMinute = averageDepartureRecords.length > 0
+    ? Math.round(averageDepartureRecords.reduce((total, record) => total + record.endMinute, 0) / averageDepartureRecords.length)
+    : null;
   /** 折算为 20 个有效出勤日的标准化压力分 */
   const standardizedPressureScore = validRecords.length > 0 ? roundToOneDecimal(rawPressureScore / validRecords.length * 20) : 0;
   return {
     validAttendanceDays: validRecords.length,
+    averageDepartureMinute,
+    averageDepartureSampleDays: averageDepartureRecords.length,
     departureBands,
     afterNineDays,
     afterTenDays,
     afterElevenDays,
     afterElevenThirtyDays,
     overnightDays,
-    weekendWorkDays: validRecords.filter((record) => record.weekday === 6 || record.weekday === 7).length,
+    weekendWorkDays: weekendRecords.length,
     releaseAfterTenDays: validRecords.filter((record) => record.isReleaseDay && (isOvernightDeparture(record) || record.endMinute >= 22 * 60)).length,
+    pressureContributions,
     rawPressureScore,
     standardizedPressureScore,
   };
+}
+
+/** 按自然月聚合全部有效记录的标准化压力指数 */
+export function calculateMonthlyPressureTrend(records: AttendanceRecord[]): MonthlyPressureTrendPoint[] {
+  /** 以 YYYY-MM 为键归集的自然月考勤记录 */
+  const recordsByMonth = new Map<string, AttendanceRecord[]>();
+  records.forEach((record) => {
+    /** 当前记录所属的自然月 */
+    const month = record.date.slice(0, 7);
+    /** 当前自然月已经归集的记录 */
+    const monthlyRecords = recordsByMonth.get(month) ?? [];
+    monthlyRecords.push(record);
+    recordsByMonth.set(month, monthlyRecords);
+  });
+  return [...recordsByMonth.entries()]
+    .sort(([leftMonth], [rightMonth]) => leftMonth.localeCompare(rightMonth))
+    .flatMap(([month, monthlyRecords]) => {
+      /** 当前自然月复用统一口径得到的压力指标 */
+      const metrics = calculateWorkloadMetrics(monthlyRecords);
+      if (metrics.validAttendanceDays === 0) return [];
+      /** 用于图表横轴的中文月份标签 */
+      const label = `${Number(month.slice(5, 7))}月`;
+      return [{ month, label, score: metrics.standardizedPressureScore, validAttendanceDays: metrics.validAttendanceDays }];
+    });
 }
 
 /** 按标准化压力分生成基础等级 */

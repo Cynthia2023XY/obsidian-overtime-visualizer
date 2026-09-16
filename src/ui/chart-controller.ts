@@ -17,16 +17,18 @@ export interface ManagedResizeObserver {
 
 /** 创建确保图表与尺寸观察器成对清理的控制器 */
 export function createDashboardChartController(
-  chart: ManagedChart,
+  chart: ManagedChart | ManagedChart[],
   resizeObserver: ManagedResizeObserver,
 ): DashboardChartController {
+  /** 统一转换后的仪表盘图表集合 */
+  const charts = Array.isArray(chart) ? chart : [chart];
   return {
     /** 主动重算当前图表的尺寸 */
-    resize: () => chart.resize(),
+    resize: () => charts.forEach((managedChart) => managedChart.resize()),
     /** 销毁尺寸观察器与图表实例 */
     destroy: () => {
       resizeObserver.disconnect();
-      chart.dispose();
+      charts.forEach((managedChart) => managedChart.dispose());
     },
   };
 }

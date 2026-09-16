@@ -19,7 +19,7 @@ export function mapWorkloadSummaryCards(records: AttendanceRecord[]): SummaryCar
   return metrics.departureBands.map((band) => ({
     label: band.label,
     value: `${band.count} 天`,
-    detail: `${band.description} · ${formatRatio(band.ratio, metrics.validAttendanceDays)}`,
+    detail: `${band.description} · ${formatRatio(band.ratio, metrics.validAttendanceDays)} · 工作日 ${band.score} 分/天`,
     tone: band.count === 0 ? "neutral" : band.score >= 6 ? "danger" : band.score >= 2 ? "warning" : "positive",
   }));
 }

@@ -1,4 +1,16 @@
 import type { RollingWorkloadEvaluation, WorkloadLevel } from "../analytics/workload-evaluation";
+import { formatClockMinute } from "../utils/time";
+
+/** 压力分来源在扇形图中使用的稳定颜色 */
+const CONTRIBUTION_COLORS: Record<string, string> = {
+  "nine-to-nine-thirty": "#c89b24",
+  "nine-thirty-to-ten": "#d98218",
+  "ten-to-eleven": "#e66a2c",
+  "eleven-to-eleven-thirty": "#e0523f",
+  "eleven-thirty-to-midnight": "#dc3f53",
+  overnight: "#b52a47",
+  weekend: "#2f9e72",
+};
 
 /** 压力等级对应的样式名称 */
 const LEVEL_CLASS_NAMES: Record<WorkloadLevel, string> = {
@@ -27,6 +39,57 @@ function formatBandRatio(ratio: number | null): string {
   return ratio === null ? "有效下班数据不足" : `占有效出勤日 ${ratio}%`;
 }
 
+/** 根据各来源压力分生成 CSS 扇形图渐变 */
+function createContributionGradient(evaluation: RollingWorkloadEvaluation): string {
+  /** 存在实际分数的压力来源 */
+  const contributions = evaluation.metrics.pressureContributions.filter((contribution) => contribution.score > 0);
+  /** 所有来源的原始压力分合计 */
+  const totalScore = evaluation.metrics.rawPressureScore;
+  if (totalScore <= 0) return "var(--background-modifier-form-field)";
+  /** 当前扇区的累计起始角度 */
+  let startDegree = 0;
+  /** conic-gradient 使用的连续颜色区间 */
+  const segments = contributions.map((contribution) => {
+    /** 当前来源在整张扇形图中占据的结束角度 */
+    const endDegree = startDegree + contribution.score / totalScore * 360;
+    /** 当前压力来源对应的图表颜色 */
+    const color = CONTRIBUTION_COLORS[contribution.id] ?? "#8b8b8b";
+    /** 当前来源对应的圆周颜色区间 */
+    const segment = `${color} ${startDegree}deg ${endDegree}deg`;
+    startDegree = endDegree;
+    return segment;
+  });
+  return `conic-gradient(${segments.join(", ")})`;
+}
+
+/** 在评价左栏渲染压力分来源扇形图与图例 */
+function renderPressureComposition(containerEl: HTMLElement, evaluation: RollingWorkloadEvaluation): void {
+  /** 压力构成卡片根节点 */
+  const compositionEl = containerEl.createDiv({ cls: "otv-pressure-composition" });
+  compositionEl.createSpan({ cls: "otv-pressure-composition__title", text: "压力分构成" });
+  /** 扇形图与分数中心文案的容器 */
+  const pieEl = compositionEl.createDiv({ cls: "otv-pressure-composition__pie" });
+  pieEl.style.background = createContributionGradient(evaluation);
+  /** 扇形图中心用于展示原始压力分的圆形区域 */
+  const pieCenterEl = pieEl.createDiv({ cls: "otv-pressure-composition__center" });
+  pieCenterEl.createEl("strong", { text: `${evaluation.metrics.rawPressureScore}` });
+  pieCenterEl.createSpan({ text: "原始分" });
+  /** 只展示实际产生分数的压力来源图例 */
+  const legendEl = compositionEl.createDiv({ cls: "otv-pressure-composition__legend" });
+  evaluation.metrics.pressureContributions.filter((contribution) => contribution.score > 0).forEach((contribution) => {
+    /** 单个压力来源的图例行 */
+    const itemEl = legendEl.createDiv({ cls: "otv-pressure-composition__item" });
+    /** 与扇形图颜色对应的图例色块 */
+    const swatchEl = itemEl.createSpan({ cls: "otv-pressure-composition__swatch" });
+    swatchEl.style.backgroundColor = CONTRIBUTION_COLORS[contribution.id] ?? "#8b8b8b";
+    itemEl.createSpan({ cls: "otv-pressure-composition__label", text: contribution.label });
+    itemEl.createEl("strong", { text: `${contribution.score} 分` });
+  });
+  if (evaluation.metrics.rawPressureScore === 0) {
+    legendEl.createSpan({ cls: "otv-pressure-composition__empty", text: "当前周期没有产生压力分" });
+  }
+}
+
 /** 渲染固定近 30 天压力评价与解释维度 */
 export function renderWorkloadEvaluation(containerEl: HTMLElement, evaluation: RollingWorkloadEvaluation): void {
   /** 近 30 天评价面板 */
@@ -41,6 +104,12 @@ export function renderWorkloadEvaluation(containerEl: HTMLElement, evaluation: R
   });
   overviewEl.createEl("p", { text: evaluation.scoreEvaluation.description });
   overviewEl.createEl("p", { text: formatComparison(evaluation) });
+  /** 近 30 天平均下班时间信息卡 */
+  const averageEl = overviewEl.createDiv({ cls: "otv-evaluation__average" });
+  averageEl.createSpan({ text: "平均下班时间（周一至周四）" });
+  averageEl.createEl("strong", { text: formatClockMinute(evaluation.metrics.averageDepartureMinute) });
+  averageEl.createEl("small", { text: evaluation.metrics.averageDepartureSampleDays > 0 ? `基于 ${evaluation.metrics.averageDepartureSampleDays} 个周内有效出勤日` : "暂无周一至周四有效下班数据" });
+  renderPressureComposition(overviewEl, evaluation);
 
   /** 评价依据明细 */
   const detailsEl = panelEl.createDiv({ cls: "otv-evaluation__details" });

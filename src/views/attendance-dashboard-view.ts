@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
-import { evaluateRollingThirtyDays } from "../analytics/workload-evaluation";
+import { calculateMonthlyPressureTrend, evaluateRollingThirtyDays } from "../analytics/workload-evaluation";
 import {
   ATTENDANCE_DATA_VIEW_TYPE,
   OVERTIME_DASHBOARD_DISPLAY_NAME,
@@ -150,10 +150,12 @@ export class AttendanceDashboardView extends ItemView {
       const departurePoints = mapDepartureTrendPoints(records);
       /** 固定近 30 天评价区间对应的下班热力数据 */
       const heatmapCells = mapRollingHeatmapCells(allRecords, rollingEvaluation.rangeEnd);
+      /** 本地全部历史记录按自然月聚合得到的压力指数走势 */
+      const monthlyPressurePoints = calculateMonthlyPressureTrend(allRecords);
 
       renderWorkloadEvaluation(contentEl, rollingEvaluation);
       renderSummaryCards(contentEl, summaryCards);
-      this.chartController = renderWorkloadCharts(contentEl, departurePoints, heatmapCells);
+      this.chartController = renderWorkloadCharts(contentEl, departurePoints, heatmapCells, monthlyPressurePoints);
 
       contentEl.createEl("p", {
         cls: "otv-disclaimer",

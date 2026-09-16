@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AttendanceRecord } from "../types/attendance";
-import { calculateWorkloadMetrics, evaluateRollingThirtyDays } from "./workload-evaluation";
+import { calculateMonthlyPressureTrend, calculateWorkloadMetrics, evaluateRollingThirtyDays } from "./workload-evaluation";
 
 /** 创建只包含评价逻辑所需字段的完整考勤记录 */
 function createRecord(
@@ -57,15 +57,67 @@ describe("加班压力评价", () => {
     expect(metrics.departureBands.map((band) => band.count)).toEqual([1, 1, 1, 1, 1, 1]);
     expect(metrics).toMatchObject({
       validAttendanceDays: 7,
+      averageDepartureMinute: 1_320,
+      averageDepartureSampleDays: 6,
       afterNineDays: 6,
       afterTenDays: 4,
       afterElevenDays: 3,
       afterElevenThirtyDays: 2,
       overnightDays: 1,
       weekendWorkDays: 1,
-      rawPressureScore: 33,
-      standardizedPressureScore: 94.3,
+      rawPressureScore: 27,
+      standardizedPressureScore: 77.1,
     });
+    expect(metrics.pressureContributions.find((contribution) => contribution.id === "weekend")?.score).toBe(6);
+  });
+
+  it("平均下班时间只统计周一至周四", () => {
+    /** 包含周内、周五和周末下班时间的样本 */
+    const records = [
+      createRecord("2026-03-02", 21 * 60, 1),
+      createRecord("2026-03-03", 22 * 60, 2),
+      createRecord("2026-03-06", 18 * 60, 5),
+      createRecord("2026-03-07", 24 * 60, 6, "linked"),
+    ];
+    /** 应当排除周五和周末的平均下班指标 */
+    const metrics = calculateWorkloadMetrics(records);
+
+    expect(metrics.averageDepartureMinute).toBe(21 * 60 + 30);
+    expect(metrics.averageDepartureSampleDays).toBe(2);
+    expect(metrics.validAttendanceDays).toBe(4);
+  });
+
+  it("周末加班每天固定六分且不叠加晚归时段分", () => {
+    /** 同为周末但下班时间差异很大的两条有效记录 */
+    const records = [
+      createRecord("2026-03-07", 18 * 60, 6),
+      createRecord("2026-03-08", 24 * 60 + 30, 7, "linked"),
+    ];
+    /** 使用周末固定计分规则得到的压力指标 */
+    const metrics = calculateWorkloadMetrics(records);
+
+    expect(metrics.weekendWorkDays).toBe(2);
+    expect(metrics.rawPressureScore).toBe(12);
+    expect(metrics.standardizedPressureScore).toBe(120);
+    expect(metrics.pressureContributions.find((contribution) => contribution.id === "overnight")?.score).toBe(0);
+    expect(metrics.pressureContributions.find((contribution) => contribution.id === "weekend")?.score).toBe(12);
+  });
+
+  it("按自然月生成统一口径的压力指数走势", () => {
+    /** 横跨两个自然月的压力指数样本 */
+    const records = [
+      createRecord("2026-02-27", 21 * 60),
+      createRecord("2026-02-28", 20 * 60),
+      createRecord("2026-03-01", 22 * 60),
+      createRecord("2026-03-02", 22 * 60),
+    ];
+    /** 按月聚合后的压力指数趋势 */
+    const trend = calculateMonthlyPressureTrend(records);
+
+    expect(trend).toEqual([
+      { month: "2026-02", label: "2月", score: 10, validAttendanceDays: 2 },
+      { month: "2026-03", label: "3月", score: 80, validAttendanceDays: 2 },
+    ]);
   });
 
   it("只要下班时间可信便纳入统计，不因上班时间待修正而丢失", () => {
