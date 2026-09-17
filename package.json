@@ -18,7 +18,7 @@
     "attendance",
     "visualization"
   ],
-  "author": "dingxinyi.2",
+  "author": "Cynthia Ding",
   "license": "MIT",
   "dependencies": {
     "echarts": "6.1.0",

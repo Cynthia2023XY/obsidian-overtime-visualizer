@@ -2,6 +2,24 @@
 
 一个离线优先的 Obsidian 下班压力看板，用于分析晚下班、跨夜工作和周末加班。
 
+## 安装
+
+发布到社区插件市场后，可在 Obsidian 的 **设置 → 第三方插件 → 浏览** 中搜索 `Overtime Visualizer` 并安装。
+
+手动安装时，将以下文件放入仓库的 `.obsidian/plugins/overtime-visualizer/` 目录：
+
+```text
+main.js
+manifest.json
+styles.css
+```
+
+重新加载 Obsidian 后，在第三方插件设置中启用 `Overtime Visualizer`。
+
+## 数据导入限制
+
+当前版本仅支持导入京东内部的考勤数据格式，不保证兼容其他公司、平台或自定义格式的考勤数据。如需导入其他格式，请自行开发相应的数据解析与转换适配。
+
 ## 当前进度
 
 当前版本已经打通本地真实数据链路：
@@ -27,7 +45,7 @@ npm install
 npm run dev
 ```
 
-插件 ID 和目录名必须保持为 `obsidian-overtime-visualizer`。若源码目录不在测试笔记库中，可在笔记库的 `.obsidian/plugins/` 目录创建软链接。
+插件 ID 为 `overtime-visualizer`。用于本地测试的插件目录或软链接名称应与该 ID 保持一致。若源码目录不在测试笔记库中，可在笔记库的 `.obsidian/plugins/` 目录创建名为 `overtime-visualizer` 的软链接。
 
 生产校验：
 
@@ -38,3 +56,21 @@ npm run lint
 ```
 
 在 Obsidian 命令面板执行 **打开加班时长仪表盘**，或点击左侧栏的时钟图标。
+
+## 隐私
+
+- 所有考勤记录、舒缓记录和插件设置仅保存在当前 Obsidian 仓库的插件数据中。
+- 插件不包含遥测、分析或广告，不会把考勤数据上传到网络服务。
+- 导出的备份仅包含白名单字段；导出文件的位置由用户主动选择。
+
+## 发布文件
+
+GitHub Release 的标签必须与 `manifest.json` 中的版本完全一致。每个 Release 应分别上传：
+
+- `main.js`
+- `manifest.json`
+- `styles.css`
+
+## License
+
+[MIT](./LICENSE)
