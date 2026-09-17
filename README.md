@@ -1,5 +1,48 @@
 # Overtime Visualizer
 
+## English
+
+Overtime Visualizer is an offline-first Obsidian dashboard for reviewing late departures, overnight work, weekend attendance, and recent workload pressure from local attendance records.
+
+### Features
+
+- Calculates a standardized workload pressure score for the latest 30 days.
+- Groups late departures into six mutually exclusive time ranges, including overnight work.
+- Displays daily departure trends, reference lines, weekend markers, and a 30-day heatmap.
+- Provides a dedicated attendance data management view.
+- Imports attendance records from JSON files, JSON code blocks in Markdown, or pasted text.
+- Previews added, updated, skipped, and invalid records before saving.
+- Recognizes leave, missing punches, and overnight attendance records.
+- Stores versioned data locally in the current vault and supports rolling back import batches.
+- Exports a sanitized JSON backup that can be imported again.
+- Supports both light and dark Obsidian themes.
+
+### Installation
+
+After the plugin is available in the Community Plugins directory, search for `Overtime Visualizer` under **Settings → Community plugins → Browse** and install it.
+
+For manual installation, copy the following files into `<vault>/.obsidian/plugins/overtime-visualizer/`:
+
+```text
+main.js
+manifest.json
+styles.css
+```
+
+Reload Obsidian, then enable `Overtime Visualizer` in the Community plugins settings. Open the dashboard from the clock icon in the ribbon or run **Open overtime dashboard** from the command palette.
+
+### Import format limitation
+
+The current version only supports the internal JD attendance data format. Attendance exports from other companies, platforms, or custom systems are not supported by default. To import another format, you must develop your own parser and conversion adapter.
+
+### Privacy
+
+- Attendance records, relief records, and plugin settings remain in the current Obsidian vault.
+- The plugin contains no telemetry, analytics, or advertising and does not upload attendance data to network services.
+- Exported backups contain only allowlisted fields, and the user explicitly chooses the export location.
+
+## 中文
+
 一个离线优先的 Obsidian 下班压力看板，用于分析晚下班、跨夜工作和周末加班。
 
 ## 安装
