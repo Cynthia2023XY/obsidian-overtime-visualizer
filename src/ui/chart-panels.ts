@@ -1,5 +1,5 @@
 import { LineChart } from "echarts/charts";
-import { GridComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
+import { GridComponent, LegendComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
 import { init, use, type ECharts, type EChartsCoreOption } from "echarts/core";
 import { SVGRenderer } from "echarts/renderers";
 import type { MonthlyPressureTrendPoint } from "../analytics/workload-evaluation";
@@ -8,7 +8,7 @@ import { formatClockMinute } from "../utils/time";
 import { createDashboardChartController, type DashboardChartController } from "./chart-controller";
 
 /** 下班折线图需要的 ECharts 按需模块 */
-const DEPARTURE_ECHARTS_MODULES = [LineChart, GridComponent, MarkLineComponent, TooltipComponent, SVGRenderer];
+const DEPARTURE_ECHARTS_MODULES = [LineChart, GridComponent, LegendComponent, MarkLineComponent, TooltipComponent, SVGRenderer];
 use(DEPARTURE_ECHARTS_MODULES);
 
 /** ECharts tooltip 中需要使用的最小数据结构 */
@@ -151,7 +151,7 @@ function formatMonthlyPressureTooltip(rawParams: MonthlyPressureTooltipParam | M
   /** tooltip 当前指向的月度压力数据 */
   const point = param ? points[param.dataIndex] : undefined;
   if (!point) return "";
-  return `<strong>${point.month}</strong><br>压力指数 ${point.score} 分<br>有效出勤 ${point.validAttendanceDays} 天`;
+  return `<strong>${point.month}</strong><br>加班压力 ${point.overtimeScore} 分<br>解压抵扣 ${point.reliefScore} 分<br>最终压力 ${point.finalScore} 分<br>有效出勤 ${point.validAttendanceDays} 天`;
 }
 
 /** 初始化全部自然月的压力指数折线图 */
@@ -163,7 +163,8 @@ function renderMonthlyPressureChart(containerEl: HTMLElement, points: MonthlyPre
   /** 月度压力折线图完整配置 */
   const option: EChartsCoreOption = {
     animationDuration: 320,
-    grid: { left: 54, right: 30, top: 34, bottom: 48 },
+    grid: { left: 54, right: 30, top: 54, bottom: 48 },
+    legend: { top: 8, textStyle: { color: colors.muted } },
     tooltip: {
       trigger: "axis",
       formatter: (params: unknown) => formatMonthlyPressureTooltip(params as MonthlyPressureTooltipParam[], points),
@@ -182,7 +183,7 @@ function renderMonthlyPressureChart(containerEl: HTMLElement, points: MonthlyPre
       splitLine: { lineStyle: { color: colors.border, type: "dashed" } },
     },
     series: [{
-      name: "压力指数",
+      name: "加班压力",
       type: "line",
       smooth: 0.2,
       symbol: "circle",
@@ -190,7 +191,25 @@ function renderMonthlyPressureChart(containerEl: HTMLElement, points: MonthlyPre
       lineStyle: { color: colors.accent, width: 3 },
       itemStyle: { color: colors.accent },
       areaStyle: { color: colors.accent, opacity: 0.08 },
-      data: points.map((point) => point.score),
+      data: points.map((point) => point.overtimeScore),
+    }, {
+      name: "解压抵扣",
+      type: "line",
+      smooth: 0.2,
+      symbol: "circle",
+      symbolSize: 7,
+      lineStyle: { color: colors.weekend, width: 2 },
+      itemStyle: { color: colors.weekend },
+      data: points.map((point) => point.reliefScore),
+    }, {
+      name: "最终工作压力",
+      type: "line",
+      smooth: 0.2,
+      symbol: "circle",
+      symbolSize: 8,
+      lineStyle: { color: colors.ten, width: 3 },
+      itemStyle: { color: colors.ten },
+      data: points.map((point) => point.finalScore),
     }],
   };
   chart.setOption(option);
@@ -234,7 +253,7 @@ export function renderWorkloadCharts(
   monthlyPressurePoints: MonthlyPressureTrendPoint[],
 ): DashboardChartController {
   /** 全部自然月压力指数走势面板内容 */
-  const monthlyPressureContentEl = createChartPanel(containerEl, "月度压力指数走势", "按自然月统计，并统一折算为 20 个有效出勤日的压力分。当前月数据会随考勤更新。 ");
+  const monthlyPressureContentEl = createChartPanel(containerEl, "月度压力指数走势", "加班、实际解压抵扣与最终压力均折算为 20 个有效出勤日，解压只在当日封顶抵扣。");
   monthlyPressureContentEl.addClass("otv-echarts-monthly-pressure");
   /** 全部月份压力指数初始化得到的折线图 */
   const monthlyPressureChart = renderMonthlyPressureChart(monthlyPressureContentEl, monthlyPressurePoints);

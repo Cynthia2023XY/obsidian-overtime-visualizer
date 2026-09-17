@@ -1,5 +1,7 @@
 import type { AttendanceRecord } from "../types/attendance";
+import type { ReliefEntry } from "../types/storage";
 import { formatLocalIsoDate, shiftIsoDate } from "../utils/date";
+import { summarizePressureLedger } from "./pressure-ledger";
 
 /** 拥有可用于下班分析时间的考勤记录 */
 type ReliableDepartureRecord = AttendanceRecord & { endMinute: number };
@@ -60,6 +62,9 @@ export interface MonthlyPressureTrendPoint {
   month: string;
   label: string;
   score: number;
+  overtimeScore: number;
+  reliefScore: number;
+  finalScore: number;
   validAttendanceDays: number;
 }
 
@@ -235,7 +240,7 @@ export function calculateWorkloadMetrics(records: AttendanceRecord[]): WorkloadM
 }
 
 /** 按自然月聚合全部有效记录的标准化压力指数 */
-export function calculateMonthlyPressureTrend(records: AttendanceRecord[]): MonthlyPressureTrendPoint[] {
+export function calculateMonthlyPressureTrend(records: AttendanceRecord[], reliefEntries: ReliefEntry[] = [], today: string = formatLocalIsoDate(new Date())): MonthlyPressureTrendPoint[] {
   /** 以 YYYY-MM 为键归集的自然月考勤记录 */
   const recordsByMonth = new Map<string, AttendanceRecord[]>();
   records.forEach((record) => {
@@ -254,7 +259,21 @@ export function calculateMonthlyPressureTrend(records: AttendanceRecord[]): Mont
       if (metrics.validAttendanceDays === 0) return [];
       /** 用于图表横轴的中文月份标签 */
       const label = `${Number(month.slice(5, 7))}月`;
-      return [{ month, label, score: metrics.standardizedPressureScore, validAttendanceDays: metrics.validAttendanceDays }];
+      /** 当月解压记录用于生成逐日封顶抵扣的最终压力 */
+      const monthlyReliefEntries = reliefEntries.filter((entry) => entry.date.startsWith(month));
+      /** 当月按日结算的压力账本合计 */
+      const ledger = summarizePressureLedger(monthlyRecords, monthlyReliefEntries, today);
+      /** 将原始账本分折算到二十个有效出勤日 */
+      const normalize = (score: number): number => roundToOneDecimal(score / metrics.validAttendanceDays * 20);
+      return [{
+        month,
+        label,
+        score: metrics.standardizedPressureScore,
+        overtimeScore: metrics.standardizedPressureScore,
+        reliefScore: normalize(ledger.appliedReliefScore),
+        finalScore: normalize(ledger.finalScore),
+        validAttendanceDays: metrics.validAttendanceDays,
+      }];
     });
 }
 

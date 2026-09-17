@@ -1,5 +1,6 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import { calculateMonthlyPressureTrend, evaluateRollingThirtyDays } from "../analytics/workload-evaluation";
+import { summarizePressureLedger } from "../analytics/pressure-ledger";
 import {
   ATTENDANCE_DATA_VIEW_TYPE,
   OVERTIME_DASHBOARD_DISPLAY_NAME,
@@ -14,6 +15,8 @@ import { renderDashboardToolbar, type DashboardFilters } from "../ui/dashboard-t
 import { ImportPreviewModal } from "../ui/import-preview-modal";
 import { renderSummaryCards } from "../ui/summary-cards";
 import { renderWorkloadEvaluation } from "../ui/workload-evaluation-panel";
+import { renderReliefPanel } from "../ui/relief-panel";
+import { YearPressureModal } from "../ui/year-pressure-modal";
 import { formatLocalIsoDate, shiftIsoDate } from "../utils/date";
 
 /** 仪表盘日期输入允许的 ISO 日期格式 */
@@ -113,6 +116,10 @@ export class AttendanceDashboardView extends ItemView {
       const allRecords = this.repository.list();
       /** 本地仓储中不受筛选影响的总记录数 */
       const totalRecordCount = allRecords.length;
+      /** 当前本地日期，用于今日解压与年度统计 */
+      const today = formatLocalIsoDate(new Date());
+      /** 本地保存的全部解压行为明细 */
+      const allReliefEntries = this.repository.listReliefEntries();
 
       /** 仪表盘页头区 */
       const heroEl = contentEl.createDiv({ cls: "otv-hero" });
@@ -125,6 +132,9 @@ export class AttendanceDashboardView extends ItemView {
       const statusEl = heroEl.createDiv({ cls: "otv-hero__status" });
       statusEl.createSpan({ cls: `otv-hero__status-dot${totalRecordCount > 0 ? " otv-hero__status-dot--ready" : ""}` });
       statusEl.createSpan({ text: totalRecordCount > 0 ? `本地 ${totalRecordCount} 条 · 当前 ${records.length} 条` : "等待导入" });
+      /** 打开当年截图分享看板的按钮 */
+      const yearButtonEl = heroEl.createEl("button", { text: "今年压力总结" });
+      yearButtonEl.onclick = () => new YearPressureModal(this.app, allRecords, allReliefEntries, today).open();
 
       renderDashboardToolbar(contentEl, this.filters, {
         onImport: () => {
@@ -142,8 +152,29 @@ export class AttendanceDashboardView extends ItemView {
         },
       });
 
+      /** 今日已记录的解压行为 */
+      const todayReliefEntries = allReliefEntries.filter((entry) => entry.date === today);
+      renderReliefPanel(contentEl, today, allRecords.find((record) => record.date === today), todayReliefEntries, {
+        onAdd: async (type, durationMinutes) => {
+          await this.repository.addReliefEntry(today, type, durationMinutes);
+          new Notice("已记录今日解压活动");
+          this.renderDashboard();
+        },
+        onUndo: async (id) => {
+          await this.repository.deleteReliefEntry(id);
+          new Notice("已撤销今日上一次记录");
+          this.renderDashboard();
+        },
+      });
+
       /** 不受所选区间影响的固定近 30 天压力评价 */
       const rollingEvaluation = evaluateRollingThirtyDays(allRecords);
+      /** 近30天严格按日封顶抵扣的压力账本 */
+      const rollingLedger = summarizePressureLedger(
+        allRecords.filter((record) => record.date >= rollingEvaluation.rangeStart && record.date <= rollingEvaluation.rangeEnd),
+        allReliefEntries.filter((entry) => entry.date >= rollingEvaluation.rangeStart && entry.date <= rollingEvaluation.rangeEnd),
+        today,
+      );
       /** 当前筛选记录映射得到的六档晚下班指标卡 */
       const summaryCards = mapWorkloadSummaryCards(records);
       /** 当前筛选记录映射得到的下班时间折线点 */
@@ -151,9 +182,9 @@ export class AttendanceDashboardView extends ItemView {
       /** 固定近 30 天评价区间对应的下班热力数据 */
       const heatmapCells = mapRollingHeatmapCells(allRecords, rollingEvaluation.rangeEnd);
       /** 本地全部历史记录按自然月聚合得到的压力指数走势 */
-      const monthlyPressurePoints = calculateMonthlyPressureTrend(allRecords);
+      const monthlyPressurePoints = calculateMonthlyPressureTrend(allRecords, allReliefEntries, today);
 
-      renderWorkloadEvaluation(contentEl, rollingEvaluation);
+      renderWorkloadEvaluation(contentEl, rollingEvaluation, rollingLedger);
       renderSummaryCards(contentEl, summaryCards);
       this.chartController = renderWorkloadCharts(contentEl, departurePoints, heatmapCells, monthlyPressurePoints);
 

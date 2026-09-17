@@ -16,6 +16,7 @@ import {
 import { AttendanceDashboardView } from "./views/attendance-dashboard-view";
 import { PluginDataRepository } from "./repository/plugin-data-repository";
 import { AttendanceDataView } from "./views/attendance-data-view";
+import type { ReliefVisualizerData } from "./types/storage";
 
 /** 加班时长可视化插件入口，负责生命周期和功能注册 */
 export default class OvertimeVisualizerPlugin extends Plugin {
@@ -25,7 +26,24 @@ export default class OvertimeVisualizerPlugin extends Plugin {
   /** 创建插件并将 Obsidian 持久化 API 注入考勤仓储 */
   constructor(app: ConstructorParameters<typeof Plugin>[0], manifest: ConstructorParameters<typeof Plugin>[1]) {
     super(app, manifest);
-    this.repository = new PluginDataRepository(this);
+    this.repository = new PluginDataRepository(this, {
+      loadReliefData: async () => {
+        /** 解压记录独立文件在笔记库中的相对路径 */
+        const path = this.getReliefDataPath();
+        if (!await this.app.vault.adapter.exists(path)) return null;
+        return JSON.parse(await this.app.vault.adapter.read(path)) as unknown;
+      },
+      saveReliefData: async (data: ReliefVisualizerData) => {
+        await this.app.vault.adapter.write(this.getReliefDataPath(), JSON.stringify(data, null, 2));
+      },
+    });
+  }
+
+  /** 返回插件目录中独立解压数据文件的路径 */
+  private getReliefDataPath(): string {
+    /** 当前插件的笔记库内安装目录 */
+    const pluginDirectory = this.manifest.dir ?? `.obsidian/plugins/${this.manifest.id}`;
+    return normalizePath(`${pluginDirectory}/relief-data.json`);
   }
 
   /** 插件启用时注册仪表盘视图、命令和侧边栏入口 */

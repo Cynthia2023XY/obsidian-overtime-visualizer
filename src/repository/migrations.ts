@@ -1,9 +1,12 @@
 import { DEFAULT_SETTINGS } from "../settings";
 import type { AttendanceRecord } from "../types/attendance";
-import type { OvertimeVisualizerData } from "../types/storage";
+import type { OvertimeVisualizerData, ReliefEntry, ReliefVisualizerData } from "../types/storage";
 
 /** 当前仓储支持的数据结构版本 */
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 3;
+
+/** 解压数据独立文件当前支持的结构版本 */
+export const CURRENT_RELIEF_SCHEMA_VERSION = 1;
 
 /** 判断未知值是否为可读取键值的普通对象 */
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -18,6 +21,16 @@ function isAttendanceRecord(value: unknown): value is AttendanceRecord {
     && typeof value.attendanceState === "string"
     && Array.isArray(value.warnings)
     && isObject(value.source);
+}
+
+/** 判断未知值是否是可恢复的解压行为明细 */
+function isReliefEntry(value: unknown): value is ReliefEntry {
+  return isObject(value)
+    && typeof value.id === "string"
+    && typeof value.date === "string"
+    && ["sanlian", "scientific-american", "walk", "cycling"].includes(String(value.type))
+    && typeof value.durationMinutes === "number"
+    && typeof value.createdAt === "number";
 }
 
 /** 生成不含任何用户考勤的初始仓储数据 */
@@ -36,13 +49,12 @@ export function migratePluginData(rawData: unknown): OvertimeVisualizerData {
   if (rawData === null || rawData === undefined) return createDefaultPluginData();
   if (!isObject(rawData)) throw new Error("插件数据格式损坏，已停止加载");
   if (typeof rawData.schemaVersion === "number" && rawData.schemaVersion > CURRENT_SCHEMA_VERSION) throw new Error("插件数据由更高版本生成，请升级插件");
-  if (rawData.schemaVersion !== CURRENT_SCHEMA_VERSION || !isObject(rawData.records)) throw new Error("不支持的插件数据结构");
+  if (![1, 2, CURRENT_SCHEMA_VERSION].includes(Number(rawData.schemaVersion)) || !isObject(rawData.records)) throw new Error("不支持的插件数据结构");
 
   /** 通过最小边界校验的考勤记录索引 */
   const records = Object.fromEntries(Object.entries(rawData.records).filter((entry): entry is [string, AttendanceRecord] => isAttendanceRecord(entry[1])));
   /** 默认值与持久化值合并得到的统计设置 */
   const settings = isObject(rawData.settings) ? { ...DEFAULT_SETTINGS, ...rawData.settings } : DEFAULT_SETTINGS;
-
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     settings: {
@@ -55,4 +67,24 @@ export function migratePluginData(rawData: unknown): OvertimeVisualizerData {
     importBatches: Array.isArray(rawData.importBatches) ? rawData.importBatches as OvertimeVisualizerData["importBatches"] : [],
     snapshots: Array.isArray(rawData.snapshots) ? rawData.snapshots as OvertimeVisualizerData["snapshots"] : [],
   };
+}
+
+/** 生成不含任何行为的初始解压数据 */
+export function createDefaultReliefData(): ReliefVisualizerData {
+  return { schemaVersion: CURRENT_RELIEF_SCHEMA_VERSION, entries: {} };
+}
+
+/** 校验独立解压文件，并在文件尚未创建时返回空数据 */
+export function migrateReliefData(rawData: unknown): ReliefVisualizerData {
+  if (rawData === null || rawData === undefined) return createDefaultReliefData();
+  if (!isObject(rawData) || rawData.schemaVersion !== CURRENT_RELIEF_SCHEMA_VERSION || !isObject(rawData.entries)) throw new Error("解压记录数据格式损坏，已停止加载");
+  /** 通过完整性校验的解压记录索引 */
+  const entries = Object.fromEntries(Object.entries(rawData.entries).filter((entry): entry is [string, ReliefEntry] => isReliefEntry(entry[1])));
+  return { schemaVersion: CURRENT_RELIEF_SCHEMA_VERSION, entries };
+}
+
+/** 从旧版 data.json 中提取待搬迁的解压记录 */
+export function extractLegacyReliefEntries(rawData: unknown): Record<string, ReliefEntry> {
+  if (!isObject(rawData) || !isObject(rawData.reliefEntries)) return {};
+  return Object.fromEntries(Object.entries(rawData.reliefEntries).filter((entry): entry is [string, ReliefEntry] => isReliefEntry(entry[1])));
 }

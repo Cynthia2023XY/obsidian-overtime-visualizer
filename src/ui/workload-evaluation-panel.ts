@@ -1,5 +1,6 @@
 import type { RollingWorkloadEvaluation, WorkloadLevel } from "../analytics/workload-evaluation";
 import { formatClockMinute } from "../utils/time";
+import type { PressureLedgerSummary } from "../analytics/pressure-ledger";
 
 /** 压力分来源在扇形图中使用的稳定颜色 */
 const CONTRIBUTION_COLORS: Record<string, string> = {
@@ -91,7 +92,7 @@ function renderPressureComposition(containerEl: HTMLElement, evaluation: Rolling
 }
 
 /** 渲染固定近 30 天压力评价与解释维度 */
-export function renderWorkloadEvaluation(containerEl: HTMLElement, evaluation: RollingWorkloadEvaluation): void {
+export function renderWorkloadEvaluation(containerEl: HTMLElement, evaluation: RollingWorkloadEvaluation, ledger?: PressureLedgerSummary): void {
   /** 近 30 天评价面板 */
   const panelEl = containerEl.createDiv({ cls: "otv-evaluation" });
   /** 综合评价主信息 */
@@ -104,6 +105,16 @@ export function renderWorkloadEvaluation(containerEl: HTMLElement, evaluation: R
   });
   overviewEl.createEl("p", { text: evaluation.scoreEvaluation.description });
   overviewEl.createEl("p", { text: formatComparison(evaluation) });
+  if (ledger) {
+    /** 近30天加班、解压和最终压力的并列摘要 */
+    const ledgerEl = overviewEl.createDiv({ cls: "otv-pressure-ledger" });
+    [["加班", ledger.overtimeScore], ["解压", ledger.reliefScore], ["最终", ledger.finalScore]].forEach(([label, score]) => {
+      /** 压力账本中的单项摘要 */
+      const itemEl = ledgerEl.createDiv();
+      itemEl.createSpan({ text: String(label) });
+      itemEl.createEl("strong", { text: `${Number(score).toFixed(Number(score) % 1 === 0 ? 0 : 1)} 分` });
+    });
+  }
   /** 近 30 天平均下班时间信息卡 */
   const averageEl = overviewEl.createDiv({ cls: "otv-evaluation__average" });
   averageEl.createSpan({ text: "平均下班时间（周一至周四）" });

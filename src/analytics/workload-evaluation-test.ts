@@ -115,8 +115,8 @@ describe("加班压力评价", () => {
     const trend = calculateMonthlyPressureTrend(records);
 
     expect(trend).toEqual([
-      { month: "2026-02", label: "2月", score: 10, validAttendanceDays: 2 },
-      { month: "2026-03", label: "3月", score: 80, validAttendanceDays: 2 },
+      { month: "2026-02", label: "2月", score: 10, overtimeScore: 10, reliefScore: 0, finalScore: 10, validAttendanceDays: 2 },
+      { month: "2026-03", label: "3月", score: 80, overtimeScore: 80, reliefScore: 0, finalScore: 80, validAttendanceDays: 2 },
     ]);
   });
 
