@@ -17,6 +17,7 @@ import { AttendanceDashboardView } from "./views/attendance-dashboard-view";
 import { PluginDataRepository } from "./repository/plugin-data-repository";
 import { AttendanceDataView } from "./views/attendance-data-view";
 import type { ReliefVisualizerData } from "./types/storage";
+import { OvertimeVisualizerSettingTab } from "./ui/plugin-settings-tab";
 
 /** 加班时长可视化插件入口，负责生命周期和功能注册 */
 export default class OvertimeVisualizerPlugin extends Plugin {
@@ -49,6 +50,7 @@ export default class OvertimeVisualizerPlugin extends Plugin {
   /** 插件启用时注册仪表盘视图、命令和侧边栏入口 */
   async onload(): Promise<void> {
     await this.repository.initialize();
+    this.addSettingTab(new OvertimeVisualizerSettingTab(this));
 
     this.registerView(
       OVERTIME_DASHBOARD_VIEW_TYPE,
@@ -81,6 +83,15 @@ export default class OvertimeVisualizerPlugin extends Plugin {
       id: "open-attendance-data",
       name: "打开考勤数据管理",
       callback: () => void this.activateAttendanceData(),
+    });
+  }
+
+  /** 当设置改变时刷新已打开的仪表盘 */
+  refreshDashboard(): void {
+    this.app.workspace.getLeavesOfType(OVERTIME_DASHBOARD_VIEW_TYPE).forEach((leaf) => {
+      /** 当前工作区叶子中的仪表盘视图 */
+      const view = leaf.view;
+      if (view instanceof AttendanceDashboardView) void view.refresh();
     });
   }
 

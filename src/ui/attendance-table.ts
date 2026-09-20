@@ -1,7 +1,12 @@
 import type { AttendanceTableRowViewModel } from "../types/view-model";
 
+/** 考勤明细表可执行的编辑操作 */
+export interface AttendanceTableActions {
+  onEdit: (date: string) => void;
+}
+
 /** 渲染独立数据管理页中的完整考勤列表 */
-export function renderAttendanceTable(containerEl: HTMLElement, rows: AttendanceTableRowViewModel[]): void {
+export function renderAttendanceTable(containerEl: HTMLElement, rows: AttendanceTableRowViewModel[], actions?: AttendanceTableActions): void {
   /** 数据表面板 */
   const panelEl = containerEl.createDiv({ cls: "otv-panel" });
 
@@ -21,7 +26,7 @@ export function renderAttendanceTable(containerEl: HTMLElement, rows: Attendance
 
   /** 考勤数据表头 */
   const headEl = tableEl.createEl("thead").createEl("tr");
-  ["日期", "类型", "上班", "下班", "在岗时长", "状态"].forEach((label) => {
+  ["日期", "类型", "上班", "下班", "在岗时长", "状态", "操作"].forEach((label) => {
     headEl.createEl("th", { text: label });
   });
 
@@ -31,7 +36,7 @@ export function renderAttendanceTable(containerEl: HTMLElement, rows: Attendance
   if (rows.length === 0) {
     /** 当前筛选范围没有数据时的空状态行 */
     const emptyCellEl = bodyEl.createEl("tr").createEl("td", { cls: "otv-table__empty", text: "当前筛选范围暂无考勤记录" });
-    emptyCellEl.colSpan = 6;
+    emptyCellEl.colSpan = 7;
   }
 
   rows.forEach((row) => {
@@ -49,5 +54,10 @@ export function renderAttendanceTable(containerEl: HTMLElement, rows: Attendance
       cls: `otv-status${row.state === "跨夜" ? " otv-status--danger" : ""}`,
       text: row.state,
     });
+    /** 单条考勤记录的操作单元格 */
+    const actionCellEl = rowEl.createEl("td", { cls: "otv-table__actions" });
+    /** 打开考勤编辑弹窗的按钮 */
+    const editButtonEl = actionCellEl.createEl("button", { text: "编辑" });
+    editButtonEl.onclick = () => actions?.onEdit(row.date);
   });
 }

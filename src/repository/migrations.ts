@@ -37,7 +37,7 @@ function isReliefEntry(value: unknown): value is ReliefEntry {
 export function createDefaultPluginData(): OvertimeVisualizerData {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    settings: { ...DEFAULT_SETTINGS, releaseWeekdays: [...DEFAULT_SETTINGS.releaseWeekdays] },
+    settings: { ...DEFAULT_SETTINGS, releaseWeekdays: [...DEFAULT_SETTINGS.releaseWeekdays], reliefActivities: DEFAULT_SETTINGS.reliefActivities.map((activity) => ({ ...activity })) },
     records: {},
     importBatches: [],
     snapshots: [],
@@ -62,6 +62,15 @@ export function migratePluginData(rawData: unknown): OvertimeVisualizerData {
       endBenchmarkMinute: Number(settings.endBenchmarkMinute),
       overnightCutoffMinute: Number(settings.overnightCutoffMinute),
       releaseWeekdays: Array.isArray(settings.releaseWeekdays) ? settings.releaseWeekdays.filter((value): value is number => typeof value === "number") : [...DEFAULT_SETTINGS.releaseWeekdays],
+      reliefActivities: Array.isArray(settings.reliefActivities)
+        ? DEFAULT_SETTINGS.reliefActivities.map((defaultActivity) => {
+          /** 与稳定行为类型匹配的用户持久化配置 */
+          const savedActivity = settings.reliefActivities.find((activity) => isObject(activity) && activity.type === defaultActivity.type);
+          return savedActivity && typeof savedActivity.name === "string" && typeof savedActivity.score === "number"
+            ? { type: defaultActivity.type, name: savedActivity.name, score: savedActivity.score }
+            : { ...defaultActivity };
+        })
+        : DEFAULT_SETTINGS.reliefActivities.map((activity) => ({ ...activity })),
     },
     records,
     importBatches: Array.isArray(rawData.importBatches) ? rawData.importBatches as OvertimeVisualizerData["importBatches"] : [],

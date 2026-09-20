@@ -66,6 +66,14 @@ export class PluginDataRepository {
     return cloneData(this.requireData()).settings;
   }
 
+  /** 持久化完整插件设置并在成功后更新内存状态 */
+  async updateSettings(settings: OvertimeVisualizerSettings): Promise<void> {
+    /** 不影响当前内存状态的待写入副本 */
+    const nextData = this.createWritableCopy();
+    nextData.settings = cloneData({ ...nextData, settings }).settings;
+    await this.commit(nextData);
+  }
+
   /** 按日期区间与创建时间查询解压行为明细 */
   listReliefEntries(startDate?: string, endDate?: string): ReliefEntry[] {
     return Object.values(this.requireReliefData().entries)
@@ -94,6 +102,23 @@ export class PluginDataRepository {
     delete nextReliefData.entries[id];
     await this.commitReliefData(nextReliefData);
     return true;
+  }
+
+  /** 更新一条解压明细并原子写入独立数据文件 */
+  async updateReliefEntry(entry: ReliefEntry): Promise<void> {
+    if (!this.requireReliefData().entries[entry.id]) throw new Error("待更新的解压记录不存在");
+    /** 不与当前内存数据共享引用的待写入副本 */
+    const nextReliefData = cloneReliefData(this.requireReliefData());
+    nextReliefData.entries[entry.id] = { ...entry };
+    await this.commitReliefData(nextReliefData);
+  }
+
+  /** 按记录标识合并导入多条解压明细 */
+  async importReliefEntries(entries: ReliefEntry[]): Promise<void> {
+    /** 不与当前内存数据共享引用的待写入副本 */
+    const nextReliefData = cloneReliefData(this.requireReliefData());
+    entries.forEach((entry) => { nextReliefData.entries[entry.id] = { ...entry }; });
+    await this.commitReliefData(nextReliefData);
   }
 
   /** 写入一条考勤记录并在成功后替换内存状态 */

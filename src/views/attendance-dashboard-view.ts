@@ -99,6 +99,11 @@ export class AttendanceDashboardView extends ItemView {
     this.renderDashboard();
   }
 
+  /** 供插件设置变更后立即重绘当前仪表盘 */
+  async refresh(): Promise<void> {
+    this.renderDashboard();
+  }
+
   /** 按当前筛选条件重建评价、指标与图表 */
   private renderDashboard(): void {
     this.chartController?.destroy();
@@ -120,6 +125,8 @@ export class AttendanceDashboardView extends ItemView {
       const today = formatLocalIsoDate(new Date());
       /** 本地保存的全部解压行为明细 */
       const allReliefEntries = this.repository.listReliefEntries();
+      /** 用于快捷按钮和压力统计的解压配置 */
+      const reliefSettings = this.repository.getSettings().reliefActivities;
 
       /** 仪表盘页头区 */
       const heroEl = contentEl.createDiv({ cls: "otv-hero" });
@@ -134,7 +141,7 @@ export class AttendanceDashboardView extends ItemView {
       statusEl.createSpan({ text: totalRecordCount > 0 ? `本地 ${totalRecordCount} 条 · 当前 ${records.length} 条` : "等待导入" });
       /** 打开当年截图分享看板的按钮 */
       const yearButtonEl = heroEl.createEl("button", { text: "今年压力总结" });
-      yearButtonEl.onclick = () => new YearPressureModal(this.app, allRecords, allReliefEntries, today).open();
+      yearButtonEl.onclick = () => new YearPressureModal(this.app, allRecords, allReliefEntries, today, reliefSettings).open();
 
       renderDashboardToolbar(contentEl, this.filters, {
         onImport: () => {
@@ -154,7 +161,7 @@ export class AttendanceDashboardView extends ItemView {
 
       /** 今日已记录的解压行为 */
       const todayReliefEntries = allReliefEntries.filter((entry) => entry.date === today);
-      renderReliefPanel(contentEl, today, allRecords.find((record) => record.date === today), todayReliefEntries, {
+      renderReliefPanel(contentEl, today, allRecords.find((record) => record.date === today), todayReliefEntries, reliefSettings, {
         onAdd: async (type, durationMinutes) => {
           await this.repository.addReliefEntry(today, type, durationMinutes);
           new Notice("已记录今日解压活动");
@@ -174,6 +181,7 @@ export class AttendanceDashboardView extends ItemView {
         allRecords.filter((record) => record.date >= rollingEvaluation.rangeStart && record.date <= rollingEvaluation.rangeEnd),
         allReliefEntries.filter((entry) => entry.date >= rollingEvaluation.rangeStart && entry.date <= rollingEvaluation.rangeEnd),
         today,
+        reliefSettings,
       );
       /** 当前筛选记录映射得到的六档晚下班指标卡 */
       const summaryCards = mapWorkloadSummaryCards(records);
@@ -182,7 +190,7 @@ export class AttendanceDashboardView extends ItemView {
       /** 固定近 30 天评价区间对应的下班热力数据 */
       const heatmapCells = mapRollingHeatmapCells(allRecords, rollingEvaluation.rangeEnd);
       /** 本地全部历史记录按自然月聚合得到的压力指数走势 */
-      const monthlyPressurePoints = calculateMonthlyPressureTrend(allRecords, allReliefEntries, today);
+      const monthlyPressurePoints = calculateMonthlyPressureTrend(allRecords, allReliefEntries, today, reliefSettings);
 
       renderWorkloadEvaluation(contentEl, rollingEvaluation, rollingLedger);
       renderSummaryCards(contentEl, summaryCards);

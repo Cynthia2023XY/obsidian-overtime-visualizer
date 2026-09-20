@@ -1,6 +1,7 @@
 import type { AttendanceRecord } from "../types/attendance";
 import type { ReliefActivityType, ReliefEntry } from "../types/storage";
-import { calculateDailyPressureLedger, RELIEF_ACTIVITY_DEFINITIONS } from "../analytics/pressure-ledger";
+import type { ReliefActivitySetting } from "../settings";
+import { calculateDailyPressureLedger, createReliefActivityDefinitions } from "../analytics/pressure-ledger";
 
 /** 解压快捷面板对外触发的持久化操作 */
 export interface ReliefPanelActions {
@@ -14,9 +15,9 @@ function formatScore(score: number): string {
 }
 
 /** 渲染当日解压快捷累计面板 */
-export function renderReliefPanel(containerEl: HTMLElement, date: string, record: AttendanceRecord | undefined, entries: ReliefEntry[], actions: ReliefPanelActions): void {
+export function renderReliefPanel(containerEl: HTMLElement, date: string, record: AttendanceRecord | undefined, entries: ReliefEntry[], settings: ReliefActivitySetting[], actions: ReliefPanelActions): void {
   /** 当日加班压力与解压行为的结算结果 */
-  const ledger = calculateDailyPressureLedger(date, record, entries, date);
+  const ledger = calculateDailyPressureLedger(date, record, entries, date, settings);
   /** 当日解压面板根容器 */
   const panelEl = containerEl.createDiv({ cls: "otv-relief-panel" });
   /** 面板标题与当日分数摘要区 */
@@ -32,11 +33,11 @@ export function renderReliefPanel(containerEl: HTMLElement, date: string, record
   scoreEl.createSpan({ text: ledger.status === "pending" ? "最早次日根据下班数据结算" : ledger.status === "settled" ? `当日最终 ${formatScore(ledger.finalScore)} 分` : "当日无有效出勤" });
   /** 四种常用解压行为的快捷按钮网格 */
   const actionsEl = panelEl.createDiv({ cls: "otv-relief-panel__actions" });
-  RELIEF_ACTIVITY_DEFINITIONS.forEach((definition) => {
+  createReliefActivityDefinitions(settings).forEach((definition) => {
     /** 单个解压行为的快捷记录按钮 */
     const buttonEl = actionsEl.createEl("button", { cls: "otv-relief-action" });
     buttonEl.createEl("strong", { text: definition.label });
-    buttonEl.createSpan({ text: `${definition.unitLabel} · ${definition.scoreLabel}` });
+    buttonEl.createSpan({ text: definition.scoreLabel });
     buttonEl.onclick = () => void actions.onAdd(definition.type, definition.incrementMinutes);
   });
   /** 当日最近一条解压记录 */

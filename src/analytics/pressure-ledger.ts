@@ -1,5 +1,6 @@
 import type { AttendanceRecord } from "../types/attendance";
 import type { ReliefActivityType, ReliefEntry } from "../types/storage";
+import { DEFAULT_SETTINGS, type ReliefActivitySetting } from "../settings";
 
 /** 解压行为在界面与统计中的稳定定义 */
 export interface ReliefActivityDefinition {
@@ -31,11 +32,22 @@ export interface PressureLedgerSummary {
 
 /** 快速操作面板展示的解压行为定义 */
 export const RELIEF_ACTIVITY_DEFINITIONS: ReliefActivityDefinition[] = [
-  { type: "sanlian", label: "看三联周刊", incrementMinutes: 30, unitLabel: "+30 分钟", scoreLabel: "+0.5 分" },
-  { type: "scientific-american", label: "看科普文章", incrementMinutes: 30, unitLabel: "+30 分钟", scoreLabel: "+0.5 分" },
-  { type: "walk", label: "下楼逛一圈", incrementMinutes: 15, unitLabel: "+15 分钟", scoreLabel: "+0.2 分" },
-  { type: "cycling", label: "骑车运动", incrementMinutes: 60, unitLabel: "+1 小时", scoreLabel: "+2 分" },
+  { type: "sanlian", label: "看三联周刊30分钟", incrementMinutes: 30, unitLabel: "", scoreLabel: "+0.5 分" },
+  { type: "scientific-american", label: "看科普文章30分钟", incrementMinutes: 30, unitLabel: "", scoreLabel: "+0.5 分" },
+  { type: "walk", label: "下楼逛一圈15分钟", incrementMinutes: 15, unitLabel: "", scoreLabel: "+0.2 分" },
+  { type: "cycling", label: "骑车运动1小时", incrementMinutes: 60, unitLabel: "", scoreLabel: "+2 分" },
 ];
+
+/** 将用户设置合并到稳定行为定义，保留历史记录所需的类型和时长 */
+export function createReliefActivityDefinitions(settings: ReliefActivitySetting[] = DEFAULT_SETTINGS.reliefActivities): ReliefActivityDefinition[] {
+  return RELIEF_ACTIVITY_DEFINITIONS.map((definition) => {
+    /** 当前行为类型对应的可编辑配置 */
+    const activitySetting = settings.find((activity) => activity.type === definition.type);
+    /** 用于界面显示的单次解压分 */
+    const score = activitySetting?.score ?? Number(definition.scoreLabel.replace(/[^\d.]/g, ""));
+    return { ...definition, label: activitySetting?.name || definition.label, scoreLabel: `+${score} 分` };
+  });
+}
 
 /** 将解压分数统一四舍五入到一位小数 */
 function roundScore(score: number): number {
@@ -43,16 +55,12 @@ function roundScore(score: number): number {
 }
 
 /** 根据当天各类行为时长计算理论解压指数 */
-export function calculateReliefScore(entries: ReliefEntry[]): number {
-  /** 三联周刊的当日累计阅读分钟 */
-  const sanlianMinutes = entries.filter((entry) => entry.type === "sanlian").reduce((total, entry) => total + entry.durationMinutes, 0);
-  /** 科普文章的当日累计阅读分钟 */
-  const scienceMinutes = entries.filter((entry) => entry.type === "scientific-american").reduce((total, entry) => total + entry.durationMinutes, 0);
-  /** 当日下楼散步总分钟 */
-  const walkMinutes = entries.filter((entry) => entry.type === "walk").reduce((total, entry) => total + entry.durationMinutes, 0);
-  /** 当日骑车运动总分钟 */
-  const cyclingMinutes = entries.filter((entry) => entry.type === "cycling").reduce((total, entry) => total + entry.durationMinutes, 0);
-  return roundScore(sanlianMinutes / 30 * 0.5 + scienceMinutes / 30 * 0.5 + walkMinutes / 15 * 0.2 + cyclingMinutes / 60 * 2);
+export function calculateReliefScore(entries: ReliefEntry[], settings: ReliefActivitySetting[] = DEFAULT_SETTINGS.reliefActivities): number {
+  /** 按行为类型索引的用户解压配置 */
+  const settingsByType = new Map(settings.map((activity) => [activity.type, activity]));
+  /** 按行为类型索引的标准单次时长 */
+  const durationByType = new Map(RELIEF_ACTIVITY_DEFINITIONS.map((definition) => [definition.type, definition.incrementMinutes]));
+  return roundScore(entries.reduce((total, entry) => total + entry.durationMinutes / (durationByType.get(entry.type) ?? entry.durationMinutes) * (settingsByType.get(entry.type)?.score ?? 0), 0));
 }
 
 /** 将单日考勤映射为不经标准化的加班压力分 */
@@ -69,11 +77,11 @@ export function calculateDailyOvertimeScore(record: AttendanceRecord | undefined
 }
 
 /** 结算指定日期的压力账本，解压分不得跨日抵扣 */
-export function calculateDailyPressureLedger(date: string, record: AttendanceRecord | undefined, entries: ReliefEntry[], today: string): DailyPressureLedger {
+export function calculateDailyPressureLedger(date: string, record: AttendanceRecord | undefined, entries: ReliefEntry[], today: string, settings: ReliefActivitySetting[] = DEFAULT_SETTINGS.reliefActivities): DailyPressureLedger {
   /** 当日考勤直接产生的加班压力 */
   const overtimeScore = calculateDailyOvertimeScore(record);
   /** 当日解压行为理论产生的全部分数 */
-  const reliefScore = calculateReliefScore(entries);
+  const reliefScore = calculateReliefScore(entries, settings);
   /** 已有可信下班时间时才视为可结算 */
   const status = date >= today ? "pending" : record?.endMinute !== null && record?.endMinute !== undefined ? "settled" : "no-work";
   /** 不超过当日加班压力的实际抵扣分 */
@@ -84,7 +92,7 @@ export function calculateDailyPressureLedger(date: string, record: AttendanceRec
 }
 
 /** 按日结算后汇总指定范围内的压力账本 */
-export function summarizePressureLedger(records: AttendanceRecord[], entries: ReliefEntry[], today: string): PressureLedgerSummary {
+export function summarizePressureLedger(records: AttendanceRecord[], entries: ReliefEntry[], today: string, settings: ReliefActivitySetting[] = DEFAULT_SETTINGS.reliefActivities): PressureLedgerSummary {
   /** 以日期为键的考勤记录 */
   const recordsByDate = new Map(records.map((record) => [record.date, record]));
   /** 以日期为键的解压行为列表 */
@@ -94,7 +102,7 @@ export function summarizePressureLedger(records: AttendanceRecord[], entries: Re
   const dates = new Set([...recordsByDate.keys(), ...entriesByDate.keys()]);
   return [...dates].reduce<PressureLedgerSummary>((summary, date) => {
     /** 当前日期的独立结算结果 */
-    const ledger = calculateDailyPressureLedger(date, recordsByDate.get(date), entriesByDate.get(date) ?? [], today);
+    const ledger = calculateDailyPressureLedger(date, recordsByDate.get(date), entriesByDate.get(date) ?? [], today, settings);
     return {
       overtimeScore: roundScore(summary.overtimeScore + ledger.overtimeScore),
       reliefScore: roundScore(summary.reliefScore + ledger.reliefScore),

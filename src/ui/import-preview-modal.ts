@@ -44,6 +44,7 @@ export class ImportPreviewModal extends Modal {
   /** 渲染文件选择、文本粘贴、预览和确认写入界面 */
   onOpen(): void {
     this.setTitle("导入考勤数据");
+    this.modalEl.addClass("otv-import-modal-shell");
     this.contentEl.addClass("otv-import-modal");
 
     this.contentEl.createEl("p", {
