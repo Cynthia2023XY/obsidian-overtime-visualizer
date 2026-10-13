@@ -57,7 +57,7 @@ export class YearPressureModal extends Modal {
     /** 年度解压行为分类统计列表 */
     const reliefEl = cardEl.createDiv({ cls: "otv-year-share__relief" });
     reliefEl.createEl("h2", { text: "解压方式" });
-    createReliefActivityDefinitions(this.reliefSettings).forEach((definition) => {
+    createReliefActivityDefinitions(this.reliefSettings, true).forEach((definition) => {
       /** 当年单个解压类型的全部记录 */
       const activityEntries = yearEntries.filter((entry) => entry.type === definition.type);
       /** 单个解压类型的展示行 */

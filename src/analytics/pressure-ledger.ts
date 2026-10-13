@@ -39,13 +39,11 @@ export const RELIEF_ACTIVITY_DEFINITIONS: ReliefActivityDefinition[] = [
 ];
 
 /** 将用户设置合并到稳定行为定义，保留历史记录所需的类型和时长 */
-export function createReliefActivityDefinitions(settings: ReliefActivitySetting[] = DEFAULT_SETTINGS.reliefActivities): ReliefActivityDefinition[] {
-  return RELIEF_ACTIVITY_DEFINITIONS.map((definition) => {
-    /** 当前行为类型对应的可编辑配置 */
-    const activitySetting = settings.find((activity) => activity.type === definition.type);
-    /** 用于界面显示的单次解压分 */
-    const score = activitySetting?.score ?? Number(definition.scoreLabel.replace(/[^\d.]/g, ""));
-    return { ...definition, label: activitySetting?.name || definition.label, scoreLabel: `+${score} 分` };
+export function createReliefActivityDefinitions(settings: ReliefActivitySetting[] = DEFAULT_SETTINGS.reliefActivities, includeInactive = false): ReliefActivityDefinition[] {
+  return settings.filter((activity) => includeInactive || activity.enabled !== false).map((activity) => {
+    // 旧事项的计分时长保证兼容已有数据
+    const legacy = RELIEF_ACTIVITY_DEFINITIONS.find((definition) => definition.type === activity.type);
+    return { type: activity.type, label: activity.name, incrementMinutes: activity.durationMinutes ?? legacy?.incrementMinutes ?? 30, unitLabel: "", scoreLabel: `+${activity.score} 分` };
   });
 }
 
@@ -59,7 +57,7 @@ export function calculateReliefScore(entries: ReliefEntry[], settings: ReliefAct
   /** 按行为类型索引的用户解压配置 */
   const settingsByType = new Map(settings.map((activity) => [activity.type, activity]));
   /** 按行为类型索引的标准单次时长 */
-  const durationByType = new Map(RELIEF_ACTIVITY_DEFINITIONS.map((definition) => [definition.type, definition.incrementMinutes]));
+  const durationByType = new Map(createReliefActivityDefinitions(settings, true).map((definition) => [definition.type, definition.incrementMinutes]));
   return roundScore(entries.reduce((total, entry) => total + entry.durationMinutes / (durationByType.get(entry.type) ?? entry.durationMinutes) * (settingsByType.get(entry.type)?.score ?? 0), 0));
 }
 

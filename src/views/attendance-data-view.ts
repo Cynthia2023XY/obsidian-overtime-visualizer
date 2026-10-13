@@ -1,14 +1,18 @@
+import { PrototypeBoard } from "../ui/prototype-board";
 import { ItemView, normalizePath, Notice, WorkspaceLeaf } from "obsidian";
 import { ATTENDANCE_DATA_DISPLAY_NAME, ATTENDANCE_DATA_VIEW_TYPE, OVERTIME_DASHBOARD_VIEW_TYPE } from "../constants";
 import { mapAttendanceTableRows } from "../mappers/secondary-view-mapper";
 import type { PluginDataRepository } from "../repository/plugin-data-repository";
 import { renderAttendanceTable } from "../ui/attendance-table";
 import { ImportPreviewModal } from "../ui/import-preview-modal";
-import { AttendanceEditModal, importReliefFile, ReliefEditModal } from "../ui/data-management-modals";
+import { DailyAttendanceModal, importReliefFile, ReliefEditModal } from "../ui/data-management-modals";
 import { createReliefActivityDefinitions } from "../analytics/pressure-ledger";
 
 /** 独立展示完整考勤记录的数据管理视图 */
 export class AttendanceDataView extends ItemView {
+  /** 当前每日记录页的图表与页面生命周期 */
+  private board: PrototypeBoard | null = null;
+
   /** 创建数据管理视图并注入已初始化的本地仓储 */
   constructor(
     leaf: WorkspaceLeaf,
@@ -44,10 +48,22 @@ export class AttendanceDataView extends ItemView {
     contentEl.empty();
     contentEl.addClass("otv-view");
 
-    /** 当前本地仓储的全部考勤记录 */
+    this.board?.destroy();
+    this.board = new PrototypeBoard(this.app, this.repository, contentEl, "每日记录");
+    this.board.render();
+    // 明细导出入口沿用原有持久化流程
+    const legacyButton = contentEl.createEl("button", { text: "完整明细与导出", cls: "pv-legacy" });
+    legacyButton.onclick = () => this.renderLegacyTables(contentEl);
+  }
+
+  /** 保留历史表格视图作为每日记录之外的专业数据入口 */
+  private renderLegacyTables(containerEl: HTMLElement): void {
+    containerEl.addClass("otv-view");
+    containerEl.empty();
+    // 既有完整考勤和解压表格内容
     const records = this.repository.list();
     /** 数据管理页头 */
-    const heroEl = contentEl.createDiv({ cls: "otv-hero otv-data-hero" });
+    const heroEl = containerEl.createDiv({ cls: "otv-hero otv-data-hero" });
     /** 数据管理页头文案 */
     const copyEl = heroEl.createDiv();
     copyEl.createEl("h1", { text: "明细数据管理" });
@@ -67,14 +83,14 @@ export class AttendanceDataView extends ItemView {
     const exportAttendanceButtonEl = actionsEl.createEl("button", { text: "导出考勤" });
     exportAttendanceButtonEl.onclick = () => void this.exportData("考勤明细", { body: { list: records.map((record) => record.source) } });
 
-    renderAttendanceTable(contentEl, mapAttendanceTableRows(records), {
+    renderAttendanceTable(containerEl, mapAttendanceTableRows(records), {
       onEdit: (date) => {
         /** 按日期定位的待编辑考勤记录 */
         const record = this.repository.get(date);
-        if (record) new AttendanceEditModal(this.app, this.repository, record, () => this.renderDataView()).open();
+        if (record) new DailyAttendanceModal(this.app, this.repository, date, () => this.renderDataView()).open();
       },
     });
-    this.renderReliefManagement(contentEl);
+    this.renderReliefManagement(containerEl);
   }
 
   /** 渲染可查看、编辑、删除、导入和导出的解压明细区 */
@@ -82,7 +98,7 @@ export class AttendanceDataView extends ItemView {
     /** 本地保存的全部解压明细 */
     const entries = this.repository.listReliefEntries().reverse();
     /** 解压配置与稳定类型合并得到的展示定义 */
-    const definitions = createReliefActivityDefinitions(this.repository.getSettings().reliefActivities);
+    const definitions = createReliefActivityDefinitions(this.repository.getSettings().reliefActivities, true);
     /** 解压明细面板 */
     const panelEl = containerEl.createDiv({ cls: "otv-panel" });
     /** 解压明细标题和操作区 */
@@ -157,8 +173,12 @@ export class AttendanceDataView extends ItemView {
     await this.app.workspace.revealLeaf(leaf);
   }
 
+  /** 设置改变后同步每日记录与快捷入口 */
+  async refresh(): Promise<void> { this.board?.render(); }
+
   /** 关闭数据管理视图时清空业务节点 */
   async onClose(): Promise<void> {
+    this.board?.destroy();
     /** Obsidian 视图的业务内容容器 */
     const contentEl = this.containerEl.children[1] as HTMLElement;
     contentEl.empty();

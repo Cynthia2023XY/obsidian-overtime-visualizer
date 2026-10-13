@@ -69,6 +69,11 @@ export class PluginDataRepository {
   /** 持久化完整插件设置并在成功后更新内存状态 */
   async updateSettings(settings: OvertimeVisualizerSettings): Promise<void> {
     /** 不影响当前内存状态的待写入副本 */
+    // 用于新增记录的已启用事项，至少保留一项
+    const active = settings.reliefActivities.filter((activity) => activity.enabled !== false);
+    if (active.length < 1 || active.length > 8 || settings.reliefActivities.length > 8) throw new Error("请启用 1–8 个解压事项");
+    if (new Set(settings.reliefActivities.map((activity) => activity.type)).size !== settings.reliefActivities.length || settings.reliefActivities.some((activity) => !activity.name.trim() || !Number.isFinite(activity.score) || activity.score < 0 || (activity.durationMinutes !== undefined && (!Number.isFinite(activity.durationMinutes) || activity.durationMinutes <= 0)))) throw new Error("请检查事项名称、分数和每次时长");
+    // 验证后的设置副本
     const nextData = this.createWritableCopy();
     nextData.settings = cloneData({ ...nextData, settings }).settings;
     await this.commit(nextData);

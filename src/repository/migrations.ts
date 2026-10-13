@@ -28,7 +28,7 @@ function isReliefEntry(value: unknown): value is ReliefEntry {
   return isObject(value)
     && typeof value.id === "string"
     && typeof value.date === "string"
-    && ["sanlian", "scientific-american", "walk", "cycling"].includes(String(value.type))
+    && DEFAULT_SETTINGS.reliefActivities.some((activity) => activity.type === value.type)
     && typeof value.durationMinutes === "number"
     && typeof value.createdAt === "number";
 }
@@ -67,7 +67,7 @@ export function migratePluginData(rawData: unknown): OvertimeVisualizerData {
           /** 与稳定行为类型匹配的用户持久化配置 */
           const savedActivity = settings.reliefActivities.find((activity) => isObject(activity) && activity.type === defaultActivity.type);
           return savedActivity && typeof savedActivity.name === "string" && typeof savedActivity.score === "number"
-            ? { type: defaultActivity.type, name: savedActivity.name, score: savedActivity.score }
+            ? { ...defaultActivity, name: savedActivity.name, score: savedActivity.score, enabled: typeof savedActivity.enabled === "boolean" ? savedActivity.enabled : true, durationMinutes: typeof savedActivity.durationMinutes === "number" ? savedActivity.durationMinutes : defaultActivity.durationMinutes }
             : { ...defaultActivity };
         })
         : DEFAULT_SETTINGS.reliefActivities.map((activity) => ({ ...activity })),

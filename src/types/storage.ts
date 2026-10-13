@@ -2,7 +2,7 @@ import type { OvertimeVisualizerSettings } from "../settings";
 import type { AttendanceRecord, AttendanceState } from "./attendance";
 
 /** 可快速记录的解压行为类型 */
-export type ReliefActivityType = "sanlian" | "scientific-american" | "walk" | "cycling";
+export type ReliefActivityType = "sanlian" | "scientific-american" | "walk" | "cycling" | "custom-1" | "custom-2" | "custom-3" | "custom-4";
 
 /** 单次解压行为的本地持久化明细 */
 export interface ReliefEntry {

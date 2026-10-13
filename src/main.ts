@@ -88,6 +88,7 @@ export default class OvertimeVisualizerPlugin extends Plugin {
 
   /** 当设置改变时刷新已打开的仪表盘 */
   refreshDashboard(): void {
+    this.app.workspace.getLeavesOfType(ATTENDANCE_DATA_VIEW_TYPE).forEach((leaf) => { if (leaf.view instanceof AttendanceDataView) void leaf.view.refresh(); });
     this.app.workspace.getLeavesOfType(OVERTIME_DASHBOARD_VIEW_TYPE).forEach((leaf) => {
       /** 当前工作区叶子中的仪表盘视图 */
       const view = leaf.view;
