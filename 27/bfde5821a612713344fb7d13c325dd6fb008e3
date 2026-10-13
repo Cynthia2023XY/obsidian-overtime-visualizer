@@ -1,0 +1,25 @@
+src/views/attendance-data-view.ts
+  s_ef8f746ae5a67d::t_7d41036dee7f16 61,66,86,90,93
+  s_ef8f746ae5a67d::t_82d53d6d99f593 8,15,57-60,62-63
+styles.css
+  s_ef8f746ae5a67d::t_51dec5e68d181c 676-749,1207-1213
+src/ui/data-management-modals.ts
+  s_ef8f746ae5a67d::t_6401a4572c81ec 71,79
+  s_ef8f746ae5a67d::t_adab049fc70545 55-70,72-78,80-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.7",
+  "base_commit_sha": "27bfde5821a612713344fb7d13c325dd6fb008e3",
+  "prompts": {},
+  "sessions": {
+    "s_ef8f746ae5a67d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1349c-f852-7053-afe3-a6bc6f8dfb40",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "dingxinyi.2 <dingxinyi.2@jd.com>"
+    }
+  }
+}
