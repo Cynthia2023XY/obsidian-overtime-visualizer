@@ -1,7 +1,12 @@
 import esbuild from "esbuild";
-import { readFileSync } from "node:fs";
+import { readFileSync, copyFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import process from "process";
 import { builtinModules } from "node:module";
+
+/** 从插件固定版本依赖读取共享样式 */
+const require = createRequire(import.meta.url);
+copyFileSync(require.resolve("@overtime-visualizer/ui/styles.css"), "styles.css");
 
 /** 构建产物顶部的自动生成声明 */
 const banner = `/*

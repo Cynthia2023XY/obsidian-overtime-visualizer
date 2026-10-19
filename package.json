@@ -23,7 +23,9 @@
   "dependencies": {
     "echarts": "6.1.0",
     "obsidian": "1.10.3",
-    "html-to-image": "1.11.13"
+    "html-to-image": "1.11.13",
+    "@overtime-visualizer/core": "file:vendor/overtime-visualizer-core-0.1.0.tgz",
+    "@overtime-visualizer/ui": "file:vendor/overtime-visualizer-ui-0.1.0.tgz"
   },
   "devDependencies": {
     "@eslint/js": "9.30.1",

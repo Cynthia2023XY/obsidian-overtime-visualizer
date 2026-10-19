@@ -68,6 +68,14 @@ styles.css
 
 重新加载 Obsidian 后，在第三方插件设置中启用 `Overtime Visualizer`。
 
+## 独立应用与共享代码
+
+桌面版已迁出插件目录，独立项目位于本机 `/Users/dingxinyi.2/Documents/practice/overtime-visualizer/`。Electron 构建与安装包在独立项目维护，插件不再依赖桌面开发工具。
+
+统计、导入与数据迁移由 `@overtime-visualizer/core@0.1.0` 提供，通用图表和组件由 `@overtime-visualizer/ui@0.1.0` 提供。两份固定版本 tarball 随仓库保存在 `vendor/`，因此克隆本插件仓库后可独立执行 `npm ci`、测试和构建，无需旁边存在独立应用仓库。`src` 中相应目录仅保留包导出适配层；插件构建时会复制共享样式到 `styles.css`。
+
+更新流程见 [共享包说明](vendor/README.md)。
+
 ## 数据导入限制
 
 当前版本仅支持导入京东内部的考勤数据格式，不保证兼容其他公司、平台或自定义格式的考勤数据。如需导入其他格式，请自行开发相应的数据解析与转换适配。
