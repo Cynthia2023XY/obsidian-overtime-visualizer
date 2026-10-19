@@ -1402,6 +1402,11 @@
 .pv-share-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 15px; margin-top: 32px; }
 .pv-share-metrics strong { font-size: 25px; display: block; }
 .pv-share-metrics small { font-size: 11px; }
+.pv-share-departures { position: relative; margin-top: 24px; padding-top: 12px; border-top: 1px solid #536982; }
+.pv-share-departures > p { font-size: 13px; line-height: 1.6; }
+.pv-share-departure-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #344252; font-size: 13px; }
+.pv-share-departure-row strong { white-space: nowrap; color: #8bbcff; }
+.pv-share-departures > small { display: block; margin-top: 12px; font-size: 11px; line-height: 1.6; }
 .pv-share-card .pv-share-quote { text-align: right; font-size: 13px; font-style: italic; }
 .pv-wide { width: 100%; margin-top: 14px; }
 .pv-share-modal { padding: 24px !important; max-width: 650px; }

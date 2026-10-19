@@ -1,5 +1,14 @@
 # Overtime Visualizer
 
+## 1.0.0 年度总结与图片分享
+
+- 提供概览、每日记录与年度回顾，以及可独立保存的解压事项配置。
+- 年度分享卡增加工作日总数、七档下班时间分布及跨夜工作日统计。
+- 在“年度回顾 → 分享年度总结”中点击“复制图片”，生成完整高清 PNG 并复制到剪贴板。
+- 保留预览中的字体、字重、渐变和山形背景；修复记录及撤销今日解压后滚动位置复位。
+- 图片在本地生成，需运行环境支持图片剪贴板；不支持时可使用系统截图。
+- 第三方图片生成依赖的许可见 [Third-party notices](THIRD_PARTY_NOTICES.md)。
+
 ## English
 
 Overtime Visualizer is an offline-first Obsidian dashboard for reviewing late departures, overnight work, weekend attendance, and recent workload pressure from local attendance records.

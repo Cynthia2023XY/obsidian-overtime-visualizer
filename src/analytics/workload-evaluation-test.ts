@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AttendanceRecord } from "../types/attendance";
-import { calculateMonthlyPressureTrend, calculateWorkloadMetrics, evaluateRollingThirtyDays } from "./workload-evaluation";
+import { calculateAnnualDepartureSummary, calculateMonthlyPressureTrend, calculateWorkloadMetrics, evaluateRollingThirtyDays } from "./workload-evaluation";
 
 /** 创建只包含评价逻辑所需字段的完整考勤记录 */
 function createRecord(
@@ -38,6 +38,43 @@ function createRecord(
 function createMonthlyRecords(count: number, resolveEndMinute: (index: number) => number): AttendanceRecord[] {
   return Array.from({ length: count }, (_value, index) => createRecord(`2026-03-${String(index + 1).padStart(2, "0")}`, resolveEndMinute(index)));
 }
+
+describe("年度分享下班统计", () => {
+  it("将临界时间和跨夜归入七个互斥档位，合计等于已确认工作日", () => {
+    // 覆盖每个档位的首尾分钟以及超过午夜的下班时间
+    const records = [1259, 1260, 1289, 1290, 1319, 1320, 1379, 1380, 1409, 1410, 1439, 1440, 1500]
+      .map((minute, index) => createRecord(`2026-03-${String(index + 1).padStart(2, "0")}`, minute));
+    // 年度卡片使用的分布统计
+    const summary = calculateAnnualDepartureSummary(records);
+    expect(summary.bands.map((band) => band.count)).toEqual([1, 2, 2, 2, 2, 2, 2]);
+    expect(summary.departureWorkdays).toBe(13);
+    expect(summary.bands.reduce((total, band) => total + band.count, 0)).toBe(summary.departureWorkdays);
+  });
+
+  it("按工作日标记包含调休，排除休息日、请假、缺失下班和跨夜待确认", () => {
+    // 周末调休记录应当按工作日计算，跨夜标记优先于时钟数值
+    const adjustedWorkday = { ...createRecord("2026-03-07", 60, 6, "linked"), dayType: "workday" as const };
+    // 混合正常工作日、调休和无法计入下班分布的记录
+    const records: AttendanceRecord[] = [
+      createRecord("2026-03-02", 1200),
+      adjustedWorkday,
+      createRecord("2026-03-08", 1380, 7),
+      { ...createRecord("2026-03-09", 1200), dayType: "holiday" },
+      { ...createRecord("2026-03-10", 1200), attendanceState: "full-leave" },
+      { ...createRecord("2026-03-11", 1200), endMinute: null, attendanceState: "incomplete" },
+      createRecord("2026-03-12", 1200, 4, "ambiguous"),
+    ];
+    // 总工作日与分布、请假、待确认天数应可相互核对
+    const summary = calculateAnnualDepartureSummary(records);
+    expect(summary).toMatchObject({ totalWorkdays: 5, departureWorkdays: 2, fullLeaveWorkdays: 1, pendingWorkdays: 2 });
+    expect(summary.bands.map((band) => band.count)).toEqual([1, 0, 0, 0, 0, 0, 1]);
+  });
+
+  it("没有记录时保留全部档位并显示零天", () => {
+    expect(calculateAnnualDepartureSummary([])).toMatchObject({ totalWorkdays: 0, departureWorkdays: 0, fullLeaveWorkdays: 0, pendingWorkdays: 0 });
+    expect(calculateAnnualDepartureSummary([]).bands.map((band) => band.count)).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
+});
 
 describe("加班压力评价", () => {
   it("将六个起始边界归入互斥时间档位", () => {

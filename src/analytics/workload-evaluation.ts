@@ -240,6 +240,28 @@ export function calculateWorkloadMetrics(records: AttendanceRecord[]): WorkloadM
   };
 }
 
+/** 汇总分享卡的工作日数量及互斥下班档位，保留请假和待确认记录的说明 */
+export function calculateAnnualDepartureSummary(records: AttendanceRecord[]) {
+  // 按考勤标记识别工作日，兼容周末调休上班
+  const workdays = records.filter((record) => record.dayType === "workday");
+  // 全天请假不计入下班时间分布
+  const fullLeaveWorkdays = workdays.filter((record) => record.attendanceState === "full-leave").length;
+  // 仅将已有下班时间且跨夜归属明确的出勤记录纳入分布
+  const departures = workdays.filter((record) => record.attendanceState !== "full-leave" && record.attendanceState !== "non-working-day" && record.endMinute !== null && record.overnightState !== "ambiguous");
+  // 复用现有跨夜判断和各档位边界，保持分享与看板统计一致
+  const metrics = calculateWorkloadMetrics(departures);
+  return {
+    totalWorkdays: workdays.length,
+    departureWorkdays: departures.length,
+    fullLeaveWorkdays,
+    pendingWorkdays: workdays.length - fullLeaveWorkdays - departures.length,
+    bands: [
+      { label: "21:00 前", count: departures.length - metrics.afterNineDays },
+      ...metrics.departureBands.map((band) => ({ label: band.id === "overnight" ? "跨夜加班（次日）" : band.label, count: band.count })),
+    ],
+  };
+}
+
 /** 按自然月聚合全部有效记录的标准化压力指数 */
 export function calculateMonthlyPressureTrend(records: AttendanceRecord[], reliefEntries: ReliefEntry[] = [], today: string = formatLocalIsoDate(new Date()), reliefSettings: ReliefActivitySetting[] = DEFAULT_SETTINGS.reliefActivities): MonthlyPressureTrendPoint[] {
   /** 以 YYYY-MM 为键归集的自然月考勤记录 */

@@ -1,16 +1,17 @@
-import { App, Modal, setIcon } from "obsidian";
+import { App, Modal, Notice, setIcon } from "obsidian";
 import { init, use, type ECharts } from "echarts/core";
 import { LineChart } from "echarts/charts";
 import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
 import { SVGRenderer } from "echarts/renderers";
 import type { PluginDataRepository } from "../repository/plugin-data-repository";
 import { calculateDailyPressureLedger, calculateReliefScore, createReliefActivityDefinitions, summarizePressureLedger } from "../analytics/pressure-ledger";
-import { calculateWorkloadMetrics } from "../analytics/workload-evaluation";
+import { calculateAnnualDepartureSummary, calculateWorkloadMetrics } from "../analytics/workload-evaluation";
 import { formatLocalIsoDate, shiftIsoDate } from "../utils/date";
 import { formatClockMinute } from "../utils/time";
 import { ImportPreviewModal } from "./import-preview-modal";
 import { DailyAttendanceModal, ReliefEditModal } from "./data-management-modals";
 import { renderReliefPanel } from "./relief-panel";
+import { copyShareImage } from "./share-image";
 use([LineChart, GridComponent, LegendComponent, TooltipComponent, SVGRenderer]);
 /** 按原型组织三页导航、真实账本和本地编辑操作 */
 export class PrototypeBoard {
@@ -85,8 +86,18 @@ export class PrototypeBoard {
         this.selected = date;
         this.month = date.slice(0, 7);
     } this.render(); }
-    /** 渲染统一导航及当前页面 */
-    render(): void {
+    /** 渲染统一导航及当前页面，原地更新数据时保留滚动位置 */
+    render(preserveScroll = false): void {
+        // 同时兼容看板自身及 Obsidian 外层容器承载滚动的布局
+        const scrollPositions: { element: HTMLElement; top: number; left: number }[] = [];
+        if (preserveScroll) {
+            // 从看板向外记录各层容器，避免清空内容时丢失滚动位置
+            let element: HTMLElement | null = this.root;
+            while (element) {
+                scrollPositions.push({ element, top: element.scrollTop, left: element.scrollLeft });
+                element = element.parentElement;
+            }
+        }
         this.destroy();
         this.root.empty();
         this.root.addClass("otv-view", "pv-app");
@@ -110,6 +121,11 @@ export class PrototypeBoard {
             this.daily(body);
         else
             this.overview(body, this.page === "年度回顾");
+        // 内容重建完成后同步恢复位置，避免用户连续记录解压事项时页面跳动
+        scrollPositions.forEach(({ element, top, left }) => {
+            element.scrollTop = top;
+            element.scrollLeft = left;
+        });
     }
     /** 用真实日级账本绘制三条压力折线 */
     private trend(parent: HTMLElement, labels: string[], values: (number | null)[][], departure = false): void {
@@ -226,7 +242,7 @@ export class PrototypeBoard {
             createReliefActivityDefinitions(settings).forEach((definition) => this.bar(habits, definition.label, entries.filter((entry) => entry.type === definition.type).reduce((sum, entry) => sum + entry.durationMinutes, 0) / 60, Math.max(1, ...createReliefActivityDefinitions(settings).map((item) => entries.filter((entry) => entry.type === item.type).reduce((sum, entry) => sum + entry.durationMinutes, 0) / 60)), "小时"));
         }
         else {
-            renderReliefPanel(side, today, this.repository.get(today) ?? undefined, this.repository.listReliefEntries().filter((entry) => entry.date === today), settings, { onAdd: async (type, minutes) => { await this.repository.addReliefEntry(today, type, minutes); this.render(); }, onUndo: async (id) => { await this.repository.deleteReliefEntry(id); this.render(); } });
+            renderReliefPanel(side, today, this.repository.get(today) ?? undefined, this.repository.listReliefEntries().filter((entry) => entry.date === today), settings, { onAdd: async (type, minutes) => { await this.repository.addReliefEntry(today, type, minutes); this.render(true); }, onUndo: async (id) => { await this.repository.deleteReliefEntry(id); this.render(true); } });
             this.button(side, "查看今日记录 →", () => this.navigate("每日记录", today));
             // 需要人工核对的记录区域
             const pending = this.panel(side, "需要处理");
@@ -416,7 +432,7 @@ export class PrototypeBoard {
             detail.createEl("p", { cls: "pv-orange", text: `待确认：${record.warnings.join("；")}` });
     }
     /** 绘制可在弹窗预览的年度分享卡 */
-    private shareCard(parent: HTMLElement): void {
+    private shareCard(parent: HTMLElement): HTMLElement {
         // 当前年份的真实压力账本
         // 当前周期的真实考勤记录
         const records = this.repository.list().filter((record) => record.date.startsWith(String(this.year)));
@@ -424,6 +440,8 @@ export class PrototypeBoard {
         const entries = this.repository.listReliefEntries().filter((entry) => entry.date.startsWith(String(this.year)));
         // 当日封顶抵扣后的压力结算
         const ledger = summarizePressureLedger(records, entries, formatLocalIsoDate(new Date()), this.repository.getSettings().reliefActivities);
+        // 分享卡按考勤工作日口径统计下班分布
+        const departureSummary = calculateAnnualDepartureSummary(records);
         // 统计卡片容器
         const card = parent.createDiv({ cls: "pv-share-card" });
         card.createDiv({ cls: "pv-sunset" });
@@ -435,10 +453,41 @@ export class PrototypeBoard {
         [["加班压力", ledger.overtimeScore], ["实际解压抵扣", ledger.appliedReliefScore], ["最终压力", ledger.finalScore]].forEach(([label, score], index) => {
         // 当前统计或事实展示项
         const item = metrics.createDiv({ cls: ["pv-orange", "pv-green", "pv-pink"][index] }); item.createEl("strong", { text: `${score} 分` }); item.createEl("small", { text: String(label) }); });
+        // 内嵌卡片与截图预览共用同一份工作日下班统计
+        const departures = card.createDiv({ cls: "pv-share-departures" });
+        departures.createEl("h3", { text: "这一年的下班时间" });
+        departures.createEl("p", { text: `累计记录 ${departureSummary.totalWorkdays} 个工作日 · 已确认下班 ${departureSummary.departureWorkdays} 天` });
+        departureSummary.bands.forEach((band) => {
+            // 单个互斥下班档位及对应工作日天数
+            const row = departures.createDiv({ cls: "pv-share-departure-row" });
+            row.createSpan({ text: band.label });
+            row.createEl("strong", { text: `${band.count} 天` });
+        });
+        departures.createEl("small", { text: `按考勤工作日标记统计，含调休上班日；全天请假 ${departureSummary.fullLeaveWorkdays} 天、待确认 ${departureSummary.pendingWorkdays} 天不计入分布。跨夜归属加班开始日。` });
         card.createEl("p", { cls: "pv-share-quote", text: "下班后，也是生活的一部分。" });
+        return card;
     }
-    /** 打开独立年度卡片供本地截图分享 */
+    /** 打开年度卡片预览并支持复制完整图片 */
     private share(): void {
-    // 本地详情或分享预览弹窗
-    const modal = new Modal(this.app); modal.modalEl.addClass("pv-app", "pv-share-modal"); modal.setTitle("年度总结分享"); this.shareCard(modal.contentEl); modal.open(); }
+        // 本地年度分享预览弹窗
+        const modal = new Modal(this.app);
+        modal.modalEl.addClass("pv-app", "pv-share-modal");
+        modal.setTitle("年度总结分享");
+        // 复制时只绘制这张卡片，不包含操作按钮
+        const card = this.shareCard(modal.contentEl);
+        // 生成期间禁用按钮，防止重复写入剪贴板
+        const copyButton = this.button(modal.contentEl, "复制图片", () => {
+            copyButton.disabled = true;
+            copyButton.textContent = "正在复制…";
+            void copyShareImage(card).then(() => {
+                new Notice("年度总结图片已复制，可直接粘贴");
+            }).catch(() => {
+                new Notice("复制图片失败，请重试；若当前环境不支持，可使用系统截图");
+            }).finally(() => {
+                copyButton.disabled = false;
+                copyButton.textContent = "复制图片";
+            });
+        }, undefined, "pv-primary pv-wide");
+        modal.open();
+    }
 }
