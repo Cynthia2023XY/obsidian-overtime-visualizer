@@ -1,0 +1,97 @@
+README.md
+  s_d6a384ec4c0661::t_d877dcf47898f0 71-78
+src/ui/dom.ts
+  s_d6a384ec4c0661::t_76dcb800285a67 1-2
+src/shared-packages-test.ts
+  s_f7b0b5c2f7c7f2::t_f5a76670dd9cd0 1-30
+.npmrc
+  s_f7b0b5c2f7c7f2::t_d7391f6b824a07 2
+esbuild.config.mjs
+  s_f7b0b5c2f7c7f2::t_f63d33239608ae 2-3,7-10
+package-lock.json
+  s_f7b0b5c2f7c7f2::t_1a0bb0cf9678f9 12-13,15-16,1048-1065,4114-4119
+package.json
+  s_f7b0b5c2f7c7f2::t_a87fbf629cfe89 26-28
+src/analytics/period-aggregation.ts
+  s_f7b0b5c2f7c7f2::t_699c6dea5e59a7 1-2
+src/analytics/pressure-ledger.ts
+  s_f7b0b5c2f7c7f2::t_ccdc125f5ab591 1-2
+src/analytics/summary.ts
+  s_f7b0b5c2f7c7f2::t_7fd504c77ad648 1-2
+src/analytics/workload-evaluation.ts
+  s_f7b0b5c2f7c7f2::t_e25bc0e2d16f6c 1-2
+src/import/extract-payload.ts
+  s_f7b0b5c2f7c7f2::t_29c95e2d82a346 1-2
+src/import/import-service.ts
+  s_f7b0b5c2f7c7f2::t_0f96e240665075 1-2
+src/import/link-overnight.ts
+  s_f7b0b5c2f7c7f2::t_4b37a6c4bb8798 1-2
+src/import/normalize-record.ts
+  s_f7b0b5c2f7c7f2::t_5d14f58e33dcad 1-2
+src/mappers/dashboard-mapper.ts
+  s_f7b0b5c2f7c7f2::t_b057d85df2cee0 1-2
+src/mappers/secondary-view-mapper.ts
+  s_f7b0b5c2f7c7f2::t_5a4cfe2ebbdf52 1-2
+src/mappers/workload-mapper.ts
+  s_f7b0b5c2f7c7f2::t_9d47e68343fcf3 1-2
+src/mocks/attendance-records.ts
+  s_f7b0b5c2f7c7f2::t_e7fc0e02463dae 1-2
+src/repository/migrations.ts
+  s_f7b0b5c2f7c7f2::t_5569851a1b09dc 1-2
+src/repository/plugin-data-repository.ts
+  s_f7b0b5c2f7c7f2::t_07f1ff8837a4e2 1-2
+src/settings.ts
+  s_f7b0b5c2f7c7f2::t_65d31fbfafedaa 1-2
+src/types/attendance.ts
+  s_f7b0b5c2f7c7f2::t_07f755e67b359f 1-2
+src/types/import.ts
+  s_f7b0b5c2f7c7f2::t_ebfdbe0d93f4e2 1-2
+src/types/storage.ts
+  s_f7b0b5c2f7c7f2::t_2d44c39f221037 1-2
+src/types/view-model.ts
+  s_f7b0b5c2f7c7f2::t_fa026a60158d8e 1-2
+src/ui/attendance-table.ts
+  s_f7b0b5c2f7c7f2::t_d7c7c32330086d 1-2
+src/ui/chart-controller.ts
+  s_f7b0b5c2f7c7f2::t_bd86b6faf6ba80 1-2
+src/ui/chart-panels.ts
+  s_f7b0b5c2f7c7f2::t_4a9716b27d041f 1-2
+src/ui/dashboard-toolbar.ts
+  s_f7b0b5c2f7c7f2::t_ef7b304c5cd924 1-2
+src/ui/relief-panel.ts
+  s_f7b0b5c2f7c7f2::t_863de19418cae5 1-2
+src/ui/summary-cards.ts
+  s_f7b0b5c2f7c7f2::t_a059c837d5428f 1-2
+src/ui/workload-evaluation-panel.ts
+  s_f7b0b5c2f7c7f2::t_064f6bf8f48518 1-2
+src/utils/date.ts
+  s_f7b0b5c2f7c7f2::t_46c10c23e0a76f 1-2
+src/utils/time.ts
+  s_f7b0b5c2f7c7f2::t_add84bc3ac26db 1-2
+vendor/README.md
+  s_f7b0b5c2f7c7f2::t_d2e3e50a3681b8 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "06eb7c2767378c290ca0980a5d495f04121d5fd4",
+  "prompts": {},
+  "sessions": {
+    "s_d6a384ec4c0661": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a125df-1e40-7172-ae4b-ca9904ab33a8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "dingxinyi.2 <dingxinyi.2@jd.com>"
+    },
+    "s_f7b0b5c2f7c7f2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a152dd-f4fe-76c0-9ffd-93f9833b2815",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "dingxinyi.2 <dingxinyi.2@jd.com>"
+    }
+  }
+}
