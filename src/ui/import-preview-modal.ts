@@ -1,3 +1,4 @@
+import { parseCombinedBackup, importCombinedBackup, type CombinedBackup } from "../backup/combined-backup";
 import { App, Modal, Notice } from "obsidian";
 import { parseAttendanceJson } from "../import/extract-payload";
 import { prepareAttendanceImport } from "../import/import-service";
@@ -23,6 +24,9 @@ export class ImportPreviewModal extends Modal {
   /** 最近一次解析得到的无副作用导入预览 */
   private preview: ImportPreview | null = null;
 
+  /** 自动识别出的合并备份，独立于旧考勤预览 */
+  private combinedBackup: CombinedBackup | null = null;
+
   /** 标记是否正在执行持久化，避免重复点击 */
   private isCommitting = false;
 
@@ -43,13 +47,13 @@ export class ImportPreviewModal extends Modal {
 
   /** 渲染文件选择、文本粘贴、预览和确认写入界面 */
   onOpen(): void {
-    this.setTitle("导入考勤数据");
+    this.setTitle("导入考勤或合并备份");
     this.modalEl.addClass("otv-import-modal-shell");
     this.contentEl.addClass("otv-import-modal");
 
     this.contentEl.createEl("p", {
       cls: "otv-import-modal__description",
-      text: "支持 JSON，或包含多个 JSON 代码块的 Markdown。只保留日期、起止时间、日类型和请假原因；姓名、工号与打卡位置不会入库。",
+      text: "支持考勤 JSON、考勤与解压合并备份，或包含多个 JSON 代码块的 Markdown。合并备份会同时恢复考勤、解压明细及配置，同日期考勤和同 ID 解压记录会更新，其余记录保留。只保留日期、起止时间、日类型和请假原因；姓名、工号与打卡位置不会入库。",
     });
 
     /** 文件选择区域 */
@@ -82,6 +86,7 @@ export class ImportPreviewModal extends Modal {
     textareaEl.oninput = () => {
       this.sourceText = textareaEl.value;
       this.preview = null;
+      this.combinedBackup = null;
       this.renderPreviewMessage("内容已变化，请重新解析预览。", "neutral");
     };
 
@@ -112,6 +117,7 @@ export class ImportPreviewModal extends Modal {
       this.parsePreview();
     } catch {
       this.preview = null;
+      this.combinedBackup = null;
       this.renderPreviewMessage("文件读取失败，请确认文件仍可访问。", "error");
     }
   }
@@ -120,21 +126,39 @@ export class ImportPreviewModal extends Modal {
   private parsePreview(): void {
     if (!this.sourceText.trim()) {
       this.preview = null;
+      this.combinedBackup = null;
       this.renderPreviewMessage("请先选择文件或粘贴数据。", "error");
       return;
     }
 
     try {
+      this.preview = null;
+      this.combinedBackup = parseCombinedBackup(this.sourceText);
+      if (this.combinedBackup) {
+        this.renderCombinedPreview(this.combinedBackup);
+        return;
+      }
       /** 从 JSON 或 Markdown 中提取的原始考勤列表 */
       const rawItems = parseAttendanceJson(this.sourceText);
       this.preview = prepareAttendanceImport(rawItems, this.repository.list(), this.repository.getSettings());
       this.renderPreview(this.preview);
     } catch (error) {
       this.preview = null;
+      this.combinedBackup = null;
       /** 对用户可读的导入解析错误 */
       const message = error instanceof Error ? error.message : "无法解析导入内容";
       this.renderPreviewMessage(message, "error");
     }
+  }
+
+  /** 展示两类记录数量及合并规则，确认前不写入本地 */
+  private renderCombinedPreview(backup: CombinedBackup): void {
+    if (!this.previewEl || !this.commitButtonEl) return;
+    this.previewEl.empty();
+    this.previewEl.createEl("p", { text: `合并备份：${backup.attendance.length} 条考勤、${backup.relief.length} 条解压明细。` });
+    this.previewEl.createEl("p", { text: "将恢复备份中的统计规则与解压事项配置。考勤按日期、解压按 ID 合并；相同标识以备份为准，其余本地记录保留。重复导入不会新增重复记录。" });
+    this.commitButtonEl.disabled = false;
+    this.commitButtonEl.textContent = "确认合并导入";
   }
 
   /** 渲染导入计数与逐条决策，供用户确认冲突和错误 */
@@ -190,7 +214,29 @@ export class ImportPreviewModal extends Modal {
 
   /** 将预览中的新增与更新记录作为一个可回滚批次写入本地 */
   private async commitImport(): Promise<void> {
-    if (!this.preview || this.preview.recordsToWrite.length === 0 || this.isCommitting) return;
+    if (this.isCommitting) return;
+    if (this.combinedBackup) {
+      // 保存用户已确认的预览，避免异步回调改变待导入对象
+      const backup = this.combinedBackup;
+      this.isCommitting = true;
+      if (this.commitButtonEl) {
+        this.commitButtonEl.disabled = true;
+        this.commitButtonEl.textContent = "正在写入…";
+      }
+      try {
+        await importCombinedBackup(this.repository, backup);
+      } catch (error) {
+        this.isCommitting = false;
+        this.renderCombinedPreview(backup);
+        new Notice(error instanceof Error ? error.message : "合并导入失败，请重试");
+        return;
+      }
+      new Notice(`已合并导入 ${backup.attendance.length} 条考勤和 ${backup.relief.length} 条解压明细`);
+      this.close();
+      await this.onImported();
+      return;
+    }
+    if (!this.preview || this.preview.recordsToWrite.length === 0) return;
     this.isCommitting = true;
     if (this.commitButtonEl) {
       this.commitButtonEl.disabled = true;
@@ -215,6 +261,7 @@ export class ImportPreviewModal extends Modal {
   onClose(): void {
     this.sourceText = "";
     this.preview = null;
+    this.combinedBackup = null;
     this.previewEl = null;
     this.commitButtonEl = null;
     this.contentEl.empty();

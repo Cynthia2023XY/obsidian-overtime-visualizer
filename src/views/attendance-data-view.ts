@@ -1,5 +1,6 @@
+import { exportJson } from "../export/json-export";
 import { PrototypeBoard } from "../ui/prototype-board";
-import { ItemView, normalizePath, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import { ATTENDANCE_DATA_DISPLAY_NAME, ATTENDANCE_DATA_VIEW_TYPE, OVERTIME_DASHBOARD_VIEW_TYPE } from "../constants";
 import { mapAttendanceTableRows } from "../mappers/secondary-view-mapper";
 import type { PluginDataRepository } from "../repository/plugin-data-repository";
@@ -144,15 +145,9 @@ export class AttendanceDataView extends ItemView {
     });
   }
 
-  /** 将指定数据导出为笔记库中的 JSON 文件 */
+  /** 将考勤或解压明细交给统一的默认目录导出流程 */
   private async exportData(name: string, data: unknown): Promise<void> {
-    /** 用于集中保存导出文件的笔记库目录 */
-    const directory = normalizePath("加班时长备份");
-    if (!this.app.vault.getAbstractFileByPath(directory)) await this.app.vault.createFolder(directory);
-    /** 避免文件名冲突的时间戳 */
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    await this.app.vault.create(normalizePath(`${directory}/${name}-${timestamp}.json`), JSON.stringify(data, null, 2));
-    new Notice(`已导出${name}`);
+    await exportJson(this.app, name, data);
   }
 
   /** 导入并刷新解压明细 */

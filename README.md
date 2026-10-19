@@ -1,5 +1,13 @@
 # Overtime Visualizer
 
+## 1.1.0 出勤趋势与合并备份
+
+- 压力趋势和每日列表、详情只展示有打卡的日期，保留单次打卡与休息日出勤。
+- 压力曲线平滑连接实际出勤日，保持原始分值。
+- 顶部新增合并及单独导出入口，桌面端默认保存到下载文件夹。
+- 支持考勤、解压明细和配置的一次导出与预览导入，重复导入按日期及记录 ID 合并。
+- 修复桌面插件导出模块加载兼容性，失败提示展示真实原因。
+
 ## 1.0.0 年度总结与图片分享
 
 - 提供概览、每日记录与年度回顾，以及可独立保存的解压事项配置。
@@ -8,6 +16,18 @@
 - 保留预览中的字体、字重、渐变和山形背景；修复记录及撤销今日解压后滚动位置复位。
 - 图片在本地生成，需运行环境支持图片剪贴板；不支持时可使用系统截图。
 - 第三方图片生成依赖的许可见 [Third-party notices](THIRD_PARTY_NOTICES.md)。
+
+## 数据导出
+
+顶部「导入考勤」旁新增「导出全部」，一次导出考勤、解压明细和统计配置到一个 JSON 文件。点击「导入考勤」选择该合并文件，预览数量后确认即可一次恢复；考勤按日期、解压按 ID 合并，相同标识以备份为准，其余记录保留，重复导入不会增加重复记录。合并备份同时恢复统计规则及解压事项配置。
+
+仍提供「导出考勤」和「导出解压」，导出全部已保存的数据，不受页面筛选影响。桌面端默认保存到当前用户的 `Downloads`（下载）文件夹，成功后提示完整路径；命令面板备份及完整明细页也使用同一路径。移动端保留笔记库内「加班时长备份」目录。文件仍为可重新导入的 JSON。
+
+## 考勤日期展示
+
+- 概览压力趋势与每日记录只展示至少有一次上班或下班打卡的日期，不按工作日、休息日区分。
+- 无打卡日期及仅有解压记录的日期不展示；原始考勤与解压数据仍保留。
+- 每日详情与列表使用同一筛选结果，前后切换会跳过无考勤日期；压力曲线平滑连接实际出勤日期，数值不变。
 
 ## English
 
@@ -48,7 +68,7 @@ The current version only supports the internal JD attendance data format. Attend
 
 - Attendance records, relief records, and plugin settings remain in the current Obsidian vault.
 - The plugin contains no telemetry, analytics, or advertising and does not upload attendance data to network services.
-- Exported backups contain only allowlisted fields, and the user explicitly chooses the export location.
+- Exported backups contain only allowlisted fields. Desktop exports are written to the current user’s Downloads folder; mobile exports remain in the vault’s 加班时长备份 folder.
 
 ## 中文
 
@@ -121,7 +141,7 @@ npm run lint
 
 - 所有考勤记录、舒缓记录和插件设置仅保存在当前 Obsidian 仓库的插件数据中。
 - 插件不包含遥测、分析或广告，不会把考勤数据上传到网络服务。
-- 导出的备份仅包含白名单字段；导出文件的位置由用户主动选择。
+- 导出的备份仅包含白名单字段；桌面端写入当前用户的 Downloads（下载）文件夹，移动端继续写入笔记库的「加班时长备份」目录。
 
 ## 发布文件
 

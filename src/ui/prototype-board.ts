@@ -12,6 +12,9 @@ import { ImportPreviewModal } from "./import-preview-modal";
 import { DailyAttendanceModal, ReliefEditModal } from "./data-management-modals";
 import { renderReliefPanel } from "./relief-panel";
 import { copyShareImage } from "./share-image";
+import { createCombinedBackup } from "../backup/combined-backup";
+import { exportJson } from "../export/json-export";
+import { getAttendanceDates } from "./attendance-dates";
 use([LineChart, GridComponent, LegendComponent, TooltipComponent, SVGRenderer]);
 /** 按原型组织三页导航、真实账本和本地编辑操作 */
 export class PrototypeBoard {
@@ -114,6 +117,9 @@ export class PrototypeBoard {
         ["概览", "每日记录", "年度回顾"].forEach((page) => this.button(nav, page, () => this.navigate(page), undefined, this.page === page ? "is-active" : ""));
         nav.createSpan({ cls: "pv-local", text: "● 仅保存在本地" });
         this.button(nav, "导入考勤", () => new ImportPreviewModal(this.app, this.repository, () => this.render()).open(), "upload", "pv-primary");
+        this.button(nav, "导出全部", () => { void exportJson(this.app, "考勤与解压备份", createCombinedBackup(this.repository)); }, "download");
+        this.button(nav, "导出考勤", () => { void exportJson(this.app, "考勤明细", { body: { list: this.repository.list().map((record) => record.source) } }); }, "download");
+        this.button(nav, "导出解压", () => { void exportJson(this.app, "解压明细", { entries: this.repository.listReliefEntries() }); }, "download");
         // 当前页的内容容器
         // 当前导航页面内容
         const body = this.root.createDiv({ cls: "pv-body" });
@@ -135,7 +141,7 @@ export class PrototypeBoard {
         // 当前图表实例
         // 当前压力趋势图实例
         const chart = init(host, undefined, { renderer: "svg" });
-        chart.setOption({ color: departure ? ["#8bbcff"] : ["#ff9d61", "#66eaa5", "#f66aab"], grid: { left: 45, right: 22, top: 48, bottom: 35 }, legend: { top: 4, right: 8, textStyle: { color: "#b9c5d6" } }, tooltip: { trigger: "axis" }, xAxis: { type: "category", data: labels, axisLabel: { color: "#b9c5d6", hideOverlap: true }, axisLine: { lineStyle: { color: "#586575" } } }, yAxis: { type: "value", min: departure ? 18 : 0, axisLabel: { color: "#b9c5d6", formatter: departure ? (value: number) => formatClockMinute(Math.round(value * 60)) : undefined }, splitLine: { lineStyle: { color: "#34414e", type: "dashed" } } }, series: (departure ? ["下班时间"] : ["加班压力", "实际抵扣", "最终压力"]).map((name, index) => ({ name, type: "line", smooth: 0.15, data: values[index], symbolSize: 6, areaStyle: index === 2 ? { opacity: 0.08 } : undefined })) });
+        chart.setOption({ color: departure ? ["#8bbcff"] : ["#ff9d61", "#66eaa5", "#f66aab"], grid: { left: 45, right: 22, top: 48, bottom: 35 }, legend: { top: 4, right: 8, textStyle: { color: "#b9c5d6" } }, tooltip: { trigger: "axis" }, xAxis: { type: "category", data: labels, axisLabel: { color: "#b9c5d6", hideOverlap: true }, axisLine: { lineStyle: { color: "#586575" } } }, yAxis: { type: "value", min: departure ? 18 : 0, axisLabel: { color: "#b9c5d6", formatter: departure ? (value: number) => formatClockMinute(Math.round(value * 60)) : undefined }, splitLine: { lineStyle: { color: "#34414e", type: "dashed" } } }, series: (departure ? ["下班时间"] : ["加班压力", "实际抵扣", "最终压力"]).map((name, index) => ({ name, type: "line", smooth: departure ? 0.15 : 0.4, smoothMonotone: "x", data: values[index], symbolSize: 6, areaStyle: index === 2 ? { opacity: 0.08 } : undefined })) });
         this.charts.push(chart);
         this.observer ??= new ResizeObserver(() => this.charts.forEach((item) => item.resize()));
         this.observer.observe(host);
@@ -221,12 +227,14 @@ export class PrototypeBoard {
         const side = grid.createDiv({ cls: "pv-side" });
         // 当前压力趋势图实例
         const chart = this.panel(main, annual ? "每月压力变化" : "压力趋势");
-        // 连续日或连续月份的账本汇总
-        // 连续统计日期列表
-        const dates = annual ? Array.from({ length: this.year === Number(today.slice(0, 4)) ? Number(today.slice(5, 7)) : 12 }, (_, i) => `${this.year}-${String(i + 1).padStart(2, "0")}`) : Array.from({ length: Math.min(3660, Math.round((Date.parse(this.end) - Date.parse(this.start)) / 86400000) + 1) }, (_, i) => shiftIsoDate(this.start, i));
+        // 年度保留月份汇总，概览只连接有打卡信息的日期
+        const dates = annual ? Array.from({ length: this.year === Number(today.slice(0, 4)) ? Number(today.slice(5, 7)) : 12 }, (_, i) => `${this.year}-${String(i + 1).padStart(2, "0")}`) : getAttendanceDates(records);
         // 逐日期结算后的指标
         const totals = dates.map((date) => summarizePressureLedger(records.filter((record) => annual ? record.date.startsWith(date) : record.date === date), entries.filter((entry) => annual ? entry.date.startsWith(date) : entry.date === date), today, settings));
-        this.trend(chart, dates.map((date) => annual ? `${Number(date.slice(5))}月` : date.slice(5)), [totals.map((item) => item.overtimeScore), totals.map((item) => item.appliedReliefScore), totals.map((item) => item.finalScore)]);
+        if (dates.length)
+            this.trend(chart, dates.map((date) => annual ? `${Number(date.slice(5))}月` : date.slice(5)), [totals.map((item) => item.overtimeScore), totals.map((item) => item.appliedReliefScore), totals.map((item) => item.finalScore)]);
+        else
+            chart.createEl("p", { text: "当前区间暂无考勤记录。" });
         if (annual) {
             // 年度分享卡容器
             const share = this.panel(side, "年度总结分享");
@@ -345,10 +353,16 @@ export class PrototypeBoard {
         const definitions = createReliefActivityDefinitions(settings);
         // 已停用事项的历史名称继续使用保存配置
         const historyDefinitions = createReliefActivityDefinitions(settings, true);
-        // 连续统计日期列表
-        const dates = [...new Set([...this.repository.list().map((record) => record.date), ...entries.map((entry) => entry.date)])].filter((date) => date.startsWith(this.month) && (this.filter === "全部" || (this.filter === "待处理" ? this.pending(date) : this.repository.get(date)?.manuallyEdited))).sort().reverse();
-        if (!this.selected || !this.selected.startsWith(this.month))
-            this.selected = dates[0] ?? `${this.month}-01`;
+        // 列表与详情共用筛选结果，仅展示存在上班或下班打卡的日期
+        const dates = getAttendanceDates(this.repository.list()).filter((date) => {
+            // 当前日期的历史解压名称参与搜索
+            const reliefNames = [...new Set(entries.filter((entry) => entry.date === date).map((entry) => historyDefinitions.find((item) => item.type === entry.type)?.label ?? entry.type))].join(" · ");
+            return date.startsWith(this.month)
+                && (this.filter === "全部" || (this.filter === "待处理" ? this.pending(date) : this.repository.get(date)?.manuallyEdited))
+                && (!this.search || `${date} ${reliefNames} ${this.repository.get(date)?.leaveReasons.join(" ")}`.includes(this.search));
+        }).reverse();
+        if (!dates.includes(this.selected))
+            this.selected = dates[0] ?? "";
         // 按日期组织的考勤解压表格
         const table = list.createEl("table", { cls: "pv-table" });
         // 记录表格的列标题
@@ -363,8 +377,6 @@ export class PrototypeBoard {
             const dayEntries = entries.filter((entry) => entry.date === date);
             // 当天解压事项的展示名称
             const reliefNames = [...new Set(dayEntries.map((entry) => historyDefinitions.find((item) => item.type === entry.type)?.label ?? entry.type))].join(" · ");
-            if (this.search && !`${date} ${reliefNames} ${record?.leaveReasons.join(" ")}`.includes(this.search))
-                return;
             // 当日封顶抵扣后的压力结算
             const ledger = calculateDailyPressureLedger(date, record ?? undefined, dayEntries, today, settings);
             // 当前数据展示行
@@ -387,8 +399,11 @@ export class PrototypeBoard {
             row.createEl("td", { cls: "pv-pink", text: ledger.status === "settled" ? `${ledger.finalScore} 分` : "—" });
             row.createEl("td").createSpan({ cls: `pv-badge ${record?.manuallyEdited ? "pv-purple" : this.pending(date) ? "pv-orange" : "pv-green"}`, text: record?.manuallyEdited ? "人工修正" : this.pending(date) ? "待处理" : ledger.status === "no-work" ? "无有效出勤" : ledger.status === "pending" ? "待结算" : "正常" });
         });
-        if (!rows.children.length)
-            list.createEl("p", { text: "当前条件下没有记录，请切换月份或新增记录。" });
+        if (!rows.children.length) {
+            list.createEl("p", { text: "当前条件下没有考勤记录，请切换月份或新增记录。" });
+            detail.createEl("p", { text: "暂无可展示的考勤详情。" });
+            return;
+        }
         // 当前日期的考勤事实
         const record = this.repository.get(this.selected);
         // 所选日期的解压记录
@@ -400,7 +415,18 @@ export class PrototypeBoard {
         heading.createEl("h2", { text: `${this.selected} · 周${"一二三四五六日"[(new Date(`${this.selected}T00:00:00Z`).getUTCDay() + 6) % 7]}` });
         // 上一日与下一日操作区域
         const arrows = heading.createDiv();
-        [-1, 1].forEach((offset) => this.button(arrows, offset === -1 ? "‹" : "›", () => { this.selected = shiftIsoDate(this.selected, offset); this.month = this.selected.slice(0, 7); this.render(); }));
+        [-1, 1].forEach((offset) => {
+            // 按日期先后跳转当前筛选范围内相邻的考勤记录
+            const target = dates[dates.indexOf(this.selected) - offset];
+            // 没有相邻记录时禁用切换，避免进入无考勤日期
+            const button = this.button(arrows, offset === -1 ? "‹" : "›", () => {
+                if (target) {
+                    this.selected = target;
+                    this.render();
+                }
+            });
+            button.disabled = !target;
+        });
         // 业务摘要指标卡区域
         const cards = detail.createDiv({ cls: "pv-metrics pv-three pv-detail-metrics" });
         this.metric(cards, "加班压力", `${ledger.overtimeScore} 分`, "clock", "orange");

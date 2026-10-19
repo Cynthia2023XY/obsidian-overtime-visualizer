@@ -1,7 +1,9 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 /** 核心计算与轻量 DOM 测试的 Vitest 配置 */
 const vitestConfig = defineConfig({
+  resolve: { alias: { obsidian: fileURLToPath(new URL("./src/mocks/obsidian-test-host.ts", import.meta.url)) } },
   test: {
     testTimeout: 5_000,
     environment: "jsdom",

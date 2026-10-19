@@ -7,7 +7,7 @@
  * - 笔记库安装路径：`<Vault>/.obsidian/plugins/obsidian-overtime-visualizer/`
  * - 主命令：`打开加班时长仪表盘`
  */
-import { normalizePath, Notice, Plugin, WorkspaceLeaf } from "obsidian";
+import { normalizePath, Plugin, WorkspaceLeaf } from "obsidian";
 import {
   ATTENDANCE_DATA_VIEW_TYPE,
   OVERTIME_DASHBOARD_DISPLAY_NAME,
@@ -18,6 +18,8 @@ import { PluginDataRepository } from "./repository/plugin-data-repository";
 import { AttendanceDataView } from "./views/attendance-data-view";
 import type { ReliefVisualizerData } from "./types/storage";
 import { OvertimeVisualizerSettingTab } from "./ui/plugin-settings-tab";
+import { createCombinedBackup } from "./backup/combined-backup";
+import { exportJson } from "./export/json-export";
 
 /** 加班时长可视化插件入口，负责生命周期和功能注册 */
 export default class OvertimeVisualizerPlugin extends Plugin {
@@ -71,6 +73,12 @@ export default class OvertimeVisualizerPlugin extends Plugin {
       id: "open-overtime-dashboard",
       name: "打开加班时长仪表盘",
       callback: () => void this.activateDashboard(),
+    });
+
+    this.addCommand({
+      id: "export-combined-backup",
+      name: "导出考勤与解压合并备份",
+      callback: () => void exportJson(this.app, "考勤与解压备份", createCombinedBackup(this.repository)),
     });
 
     this.addCommand({
@@ -128,34 +136,13 @@ export default class OvertimeVisualizerPlugin extends Plugin {
     await this.app.workspace.revealLeaf(leaf);
   }
 
-  /** 将可重新导入的白名单考勤字段导出到笔记库备份目录 */
+  /** 将可重新导入的白名单考勤字段导出到默认下载目录 */
   private async exportSanitizedBackup(): Promise<void> {
-    try {
-      /** 笔记库内集中保存脱敏备份的目录 */
-      const backupDirectory = normalizePath("加班时长备份");
-      if (!this.app.vault.getAbstractFileByPath(backupDirectory)) {
-        await this.app.vault.createFolder(backupDirectory);
-      }
-
-      /** 用于避免备份文件重名的本地导出时刻 */
-      const exportedAt = new Date();
-      /** 不含文件系统非法冒号的备份时间戳 */
-      const timestamp = exportedAt.toISOString().replace(/[:.]/g, "-");
-      /** 当前所有记录中可重新导入的脱敏原始字段 */
-      const sanitizedItems = this.repository.list().reverse().map((record) => record.source);
-      /** 与普通考勤 JSON 使用相同解包格式的备份内容 */
-      const backupContent = JSON.stringify({
-        exportedAt: exportedAt.toISOString(),
-        body: { list: sanitizedItems },
-      }, null, 2);
-      /** 本次脱敏备份在笔记库中的目标路径 */
-      const backupPath = normalizePath(`${backupDirectory}/考勤脱敏备份-${timestamp}.json`);
-      /** 新创建的脱敏备份文件 */
-      const backupFile = await this.app.vault.create(backupPath, backupContent);
-      await this.app.workspace.getLeaf("tab").openFile(backupFile);
-      new Notice(`已导出 ${sanitizedItems.length} 条脱敏考勤记录`);
-    } catch {
-      new Notice("脱敏考勤备份导出失败，请检查笔记库写入权限");
-    }
+    // 导出时间同时保存在备份正文，便于确认数据版本
+    const exportedAt = new Date().toISOString();
+    await exportJson(this.app, "考勤脱敏备份", {
+      exportedAt,
+      body: { list: this.repository.list().reverse().map((record) => record.source) },
+    });
   }
 }
