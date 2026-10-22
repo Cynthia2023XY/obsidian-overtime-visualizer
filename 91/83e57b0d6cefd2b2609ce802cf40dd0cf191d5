@@ -1,0 +1,62 @@
+eslint.config.mts
+  s_d6a384ec4c0661::t_28caf8fad9af7a 20-26,34
+  s_c5d64e604a7874::t_4ec2c309e4fe26 27-33
+.github/workflows/attest-release.yml
+  s_c5d64e604a7874::t_436992289b33ca 1-54
+README.md
+  s_c5d64e604a7874::t_dc21eebb9b0e83 3-9,78-79,104,153-154,168-173
+manifest.json
+  s_c5d64e604a7874::t_ad0222ab66f74b 4
+package-lock.json
+  s_c5d64e604a7874::t_6b7ba26ea8f4c1 3,9,13,15,24,28,660-689,1085-1087,1477,1484-1486,1498,1526,3304-3313,3315-3317,3321-3324,3326,3328-3330,3334,3337-3340,3351,3356-3368,3380-3382,3390-3391,5296-5299,5527-5530,5534,5537-5538
+package.json
+  s_c5d64e604a7874::t_95e3621872b597 3,10,25-27,36,40,45-47
+src/export/json-export.ts
+  s_c5d64e604a7874::t_35c862a7052329 10,12,15,18
+src/ui/plugin-settings-tab.ts
+  s_c5d64e604a7874::t_18b199d77a7713 1,13-31,49-50,52,56
+src/ui/prototype-board-test.ts
+  s_c5d64e604a7874::t_e653716632007c 42
+src/ui/share-image-test.ts
+  s_c5d64e604a7874::t_a2f5f7a3d458e7 26,42,48,55
+styles.css
+  s_c5d64e604a7874::t_ae2551ab0e05ba 150-151,964-965,967,1307,1310,1345,1396,1399,1412-1413,1437,1441-1442
+tests/export/json-export-test.ts
+  s_c5d64e604a7874::t_15c9b877bf6694 10,13,19,48,83-85
+tests/mocks/dom-test-host.ts
+  s_c5d64e604a7874::t_25b5a52406032f 1-44
+tests/plugin-settings-tab-test.ts
+  s_c5d64e604a7874::t_6c1b5f23caa355 1-119
+tsconfig.json
+  s_c5d64e604a7874::t_2fa47d8585b9ef 26-27
+vendor/README.md
+  s_c5d64e604a7874::t_ce6019d9e727d4 4
+versions.json
+  s_c5d64e604a7874::t_a9a4e495f7ef7c 6-7
+vitest.config.ts
+  s_c5d64e604a7874::t_4d724963668642 10-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "9183e57b0d6cefd2b2609ce802cf40dd0cf191d5",
+  "prompts": {},
+  "sessions": {
+    "s_c5d64e604a7874": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a161d8-0e8c-7712-9e02-a0906b53ebb3",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "dingxinyi.2 <dingxinyi.2@jd.com>"
+    },
+    "s_d6a384ec4c0661": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a125df-1e40-7172-ae4b-ca9904ab33a8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "dingxinyi.2 <dingxinyi.2@jd.com>"
+    }
+  }
+}
