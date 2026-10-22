@@ -1,7 +1,7 @@
 # 插件固定版本共享包
 
 - `overtime-visualizer-core-0.1.0.tgz`：统计、导入、数据模型、配置及迁移。
-- `overtime-visualizer-ui-0.1.0.tgz`：不依赖 Obsidian/Electron 的通用界面、图表和样式。
+- `overtime-visualizer-ui-0.1.1.tgz`：不依赖 Obsidian/Electron 的通用界面、图表和样式。
 
 这些 tarball 是发布依赖，需随插件仓库提交。`package.json` 和 `package-lock.json` 固定它们的路径与完整性；插件安装和构建不需要外部本地目录或符号链接。
 

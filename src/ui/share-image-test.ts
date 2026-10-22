@@ -23,7 +23,7 @@ describe("年度分享图片复制", () => {
     // 监测写入的图片类型和异步生成任务
     const write = setupClipboard();
     // 模拟比弹窗可见高度更长的分享卡
-    const card = document.createElement("div");
+    const card = createDiv();
     Object.defineProperties(card, { scrollWidth: { value: 700 }, scrollHeight: { value: 980 } });
     vi.spyOn(card, "getBoundingClientRect").mockReturnValue({ width: 520, height: 980 } as DOMRect);
     // 用户点击发起的复制任务
@@ -39,19 +39,19 @@ describe("年度分享图片复制", () => {
 
   it("没有图片剪贴板能力时拒绝复制且不开始绘制", async () => {
     vi.stubGlobal("navigator", {});
-    await expect(copyShareImage(document.createElement("div"))).rejects.toThrow("不支持复制图片");
+    await expect(copyShareImage(createDiv())).rejects.toThrow("不支持复制图片");
     expect(toBlob).not.toHaveBeenCalled();
   });
 
   it("PNG 编码失败时报告失败", async () => {
     setupClipboard(null);
-    await expect(copyShareImage(document.createElement("div"))).rejects.toThrow("图片生成失败");
+    await expect(copyShareImage(createDiv())).rejects.toThrow("图片生成失败");
   });
 
   it("剪贴板拒绝写入时不会报告复制成功", async () => {
     // 模拟权限或系统剪贴板写入失败
     const write = setupClipboard();
     write.mockRejectedValue(new Error("剪贴板拒绝写入"));
-    await expect(copyShareImage(document.createElement("div"))).rejects.toThrow("拒绝写入");
+    await expect(copyShareImage(createDiv())).rejects.toThrow("拒绝写入");
   });
 });

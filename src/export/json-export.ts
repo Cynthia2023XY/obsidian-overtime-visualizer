@@ -7,15 +7,15 @@ export async function exportJson(app: App, name: string, data: unknown): Promise
         const content = JSON.stringify(data, null, 2);
         // 文件名包含导出时刻，便于查找和区分多次备份
         const filename = `${name}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-        if (Platform.isDesktopApp) {
+        if (Platform.isDesktop && Platform.isDesktopApp) {
             // 桌面端按需加载文件系统，避免影响移动端插件启动
-            // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports, import/no-nodejs-modules -- Obsidian 脚本宿主需在桌面分支使用 CommonJS 加载
+            // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports -- Obsidian 脚本宿主需在桌面分支使用 CommonJS 加载
             const fs = (require("fs") as typeof import("fs")).promises;
             // 使用当前登录用户的主目录定位默认下载文件夹
-            // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports, import/no-nodejs-modules -- 仅桌面端按需加载用户目录能力
+            // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports -- 仅桌面端按需加载用户目录能力
             const os = require("os") as typeof import("os");
             // 使用当前操作系统的文件路径分隔规则
-            // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports, import/no-nodejs-modules -- 仅桌面端按需加载路径能力
+            // eslint-disable-next-line no-undef, @typescript-eslint/no-require-imports -- 仅桌面端按需加载路径能力
             const path = require("path") as typeof import("path");
             // 桌面端所有导出入口统一写入用户下载目录
             const directory = path.join(os.homedir(), "Downloads");

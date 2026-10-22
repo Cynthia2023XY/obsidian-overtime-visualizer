@@ -1,13 +1,13 @@
 {
   "name": "obsidian-overtime-visualizer",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Visualize attendance, working duration, late departures, leave, and overnight work in Obsidian.",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
-    "lint": "eslint src",
+    "lint": "eslint src tests --max-warnings 0",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -21,11 +21,10 @@
   "author": "Cynthia Ding",
   "license": "MIT",
   "dependencies": {
-    "echarts": "6.1.0",
-    "obsidian": "1.10.3",
-    "html-to-image": "1.11.13",
     "@overtime-visualizer/core": "file:vendor/overtime-visualizer-core-0.1.0.tgz",
-    "@overtime-visualizer/ui": "file:vendor/overtime-visualizer-ui-0.1.0.tgz"
+    "@overtime-visualizer/ui": "file:vendor/overtime-visualizer-ui-0.1.1.tgz",
+    "echarts": "6.1.0",
+    "html-to-image": "1.11.13"
   },
   "devDependencies": {
     "@eslint/js": "9.30.1",
@@ -34,13 +33,17 @@
     "@vitest/coverage-v8": "1.6.0",
     "esbuild": "0.25.5",
     "eslint": "9.30.1",
-    "eslint-plugin-obsidianmd": "0.1.9",
+    "eslint-plugin-obsidianmd": "0.4.2",
     "globals": "14.0.0",
     "jiti": "2.6.1",
     "jsdom": "24.0.0",
+    "obsidian": "1.14.4",
     "tslib": "2.4.0",
     "typescript": "5.8.3",
     "typescript-eslint": "8.35.1",
     "vitest": "1.6.0"
+  },
+  "overrides": {
+    "moment": "2.31.0"
   }
 }

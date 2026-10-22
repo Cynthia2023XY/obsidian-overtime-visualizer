@@ -23,6 +23,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "tests/**/*.ts"
   ]
 }

@@ -7,7 +7,8 @@ const vitestConfig = defineConfig({
   test: {
     testTimeout: 5_000,
     environment: "jsdom",
-    include: ["src/**/*-test.ts"],
+    setupFiles: ["tests/mocks/dom-test-host.ts"],
+    include: ["src/**/*-test.ts", "tests/**/*-test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],

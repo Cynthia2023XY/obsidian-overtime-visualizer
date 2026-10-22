@@ -16,31 +16,6 @@ vi.mock("../export/json-export", () => ({ exportJson: vi.fn().mockResolvedValue(
 /** 保留图表配置以验证日期与真实压力数据的对应关系 */
 vi.mock("echarts/core", () => ({ use: vi.fn(), init: vi.fn(() => ({ setOption: vi.fn(), dispose: vi.fn(), resize: vi.fn() })) }));
 
-/** 在 DOM 测试中补齐看板使用的 Obsidian 元素创建方法 */
-Object.assign(HTMLElement.prototype, {
-    // 按宿主参数创建带文本、样式和表单属性的元素
-    createEl(this: HTMLElement, tag: string, options: { cls?: string; text?: string; type?: string; value?: string; placeholder?: string } = {}) {
-        // 模拟宿主生成的实际 DOM 节点
-        const element = document.createElement(tag);
-        if (options.cls) element.className = options.cls;
-        if (options.text) element.textContent = options.text;
-        // 将表单配置映射到对应属性
-        for (const key of ["type", "value", "placeholder"] as const) {
-            if (options[key]) element.setAttribute(key, options[key]);
-        }
-        this.append(element);
-        return element;
-    },
-    // 创建布局容器，复用统一的元素选项
-    createDiv(this: HTMLElement, options?: { cls?: string; text?: string }) { return this.createEl("div", options); },
-    // 创建内联文本或图标容器
-    createSpan(this: HTMLElement, options?: { cls?: string; text?: string }) { return this.createEl("span", options); },
-    // 模拟每次重绘前的宿主清理
-    empty(this: HTMLElement) { this.replaceChildren(); },
-    // 模拟宿主样式类接口
-    addClass(this: HTMLElement, ...classes: string[]) { this.classList.add(...classes); },
-});
-
 /** 测试结束后恢复时钟并销毁残留 DOM */
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
@@ -64,7 +39,7 @@ function renderBoard(records: AttendanceRecord[], page = "每日记录") {
     // 提供看板所需的本地数据读取边界
     const repository = { list: () => records, get: (date: string) => records.find((record) => record.date === date) ?? null, listReliefEntries: () => entries, getSettings: () => DEFAULT_SETTINGS } as unknown as PluginDataRepository;
     // 测试看板的独立挂载节点
-    const root = document.body.appendChild(document.createElement("div"));
+    const root = document.body.appendChild(createDiv());
     // 可实际操作导航、筛选和详情的看板
     const board = new PrototypeBoard({} as App, repository, root, page);
     board.render();

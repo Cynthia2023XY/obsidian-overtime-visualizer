@@ -1,5 +1,4 @@
 // @vitest-environment node
-/* eslint-disable import/no-nodejs-modules -- 测试桌面导出边界，文件系统调用已全部模拟 */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "fs";
 import os from "os";
@@ -8,15 +7,16 @@ import { createRequire } from "module";
 import { Script } from "vm";
 import { build } from "esbuild";
 import { Notice, Platform, type App } from "obsidian";
-import { exportJson } from "./json-export";
+import { exportJson } from "../../src/export/json-export";
 
 /** 模拟平台和消息提示，不依赖真实 Obsidian 进程 */
-vi.mock("obsidian", () => ({ Platform: { isDesktopApp: true }, Notice: vi.fn(), normalizePath: (path: string) => path }));
+vi.mock("obsidian", () => ({ Platform: { isDesktop: true, isDesktopApp: true }, Notice: vi.fn(), normalizePath: (path: string) => path }));
 /** 每个用例固定导出时间并恢复桌面平台 */
 beforeEach(() => {
     vi.resetAllMocks();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-19T08:00:00.000Z"));
+    Platform.isDesktop = true;
     Platform.isDesktopApp = true;
     vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
     vi.spyOn(fs, "writeFile").mockResolvedValue(undefined);
@@ -45,7 +45,7 @@ describe("默认导出位置", () => {
             // 真实 Node 模块读取能力仅用于临时目录集成验证
             const load = createRequire(import.meta.url);
             new Script(bundle.outputFiles[0]!.text).runInNewContext({ module, exports: module.exports, require: (id: string) => {
-                if (id === "obsidian") return { Platform: { isDesktopApp: true }, Notice };
+                if (id === "obsidian") return { Platform: { isDesktop: true, isDesktopApp: true }, Notice };
                 if (id === "os") return { homedir: () => home };
                 return load(id) as unknown;
             } });
@@ -80,8 +80,9 @@ describe("默认导出位置", () => {
         expect(vault.create).not.toHaveBeenCalled();
     });
 
-    it("移动端继续导出至笔记库且不加载桌面写入流程", async () => {
-        Platform.isDesktopApp = false;
+    it.each([[false, false], [true, false], [false, true]])("非桌面宿主（桌面模式 %s，桌面应用 %s）仅写入笔记库", async (desktop, desktopApp) => {
+        Platform.isDesktop = desktop;
+        Platform.isDesktopApp = desktopApp;
         // 移动端仍可使用原有备份位置
         const { app, vault } = createApp();
         await exportJson(app, "解压明细", { entries: [] });

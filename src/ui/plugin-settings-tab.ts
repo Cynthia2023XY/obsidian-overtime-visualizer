@@ -1,4 +1,4 @@
-import { Notice, PluginSettingTab, Setting, type ToggleComponent, type ButtonComponent } from "obsidian";
+import { Notice, PluginSettingTab, Setting, type ToggleComponent, type ButtonComponent, type SettingDefinitionItem } from "obsidian";
 import type OvertimeVisualizerPlugin from "../main";
 import { createReliefActivityDefinitions } from "../analytics/pressure-ledger";
 
@@ -10,12 +10,25 @@ export class OvertimeVisualizerSettingTab extends PluginSettingTab {
   /** 注入插件仓储与页面刷新能力 */
   constructor(private readonly plugin: OvertimeVisualizerPlugin) { super(plugin.app, plugin); }
 
-  /** 展示事项表单，启用即时应用，其他字段按事项独立保存 */
-  display(): void {
-    this.containerEl.empty();
-    this.containerEl.addClass("otv-relief-settings");
-    new Setting(this.containerEl).setName("解压事项").setHeading();
-    this.containerEl.createEl("p", { text: "可启用 1–8 项。停用只隐藏快捷入口，历史记录仍保留并参与统计。启用开关即时生效；名称、时长和分数修改后，在对应事项内点击“保存此事项”。" });
+  /** 新版宿主通过定义索引配置，仍使用独立保存表单避免自动提交其他事项 */
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [{
+      name: "解压事项",
+      desc: "启用、事项名称、每次时长（分钟）、每次解压分；按事项独立保存。",
+      aliases: this.plugin.repository.getSettings().reliefActivities.map((activity) => activity.name),
+      render: (setting) => { this.renderSettings(setting.settingEl); },
+    }];
+  }
+
+  /** 旧版宿主继续展示相同表单，保持最低支持版本不变 */
+  display(): void { this.renderSettings(this.containerEl); }
+
+  /** 两种宿主入口共享同一表单和保存行为 */
+  private renderSettings(container: HTMLElement): void {
+    container.empty();
+    container.addClass("otv-relief-settings");
+    new Setting(container).setName("解压事项").setHeading();
+    container.createEl("p", { text: "可启用 1–8 项。停用只隐藏快捷入口，历史记录仍保留并参与统计。启用开关即时生效；名称、时长和分数修改后，在对应事项内点击“保存此事项”。" });
     // 独立编辑副本，保存前不改变看板
     const settings = this.plugin.repository.getSettings();
     // 保存过程中同步禁用所有开关，避免并发覆盖配置
@@ -33,14 +46,14 @@ export class OvertimeVisualizerSettingTab extends PluginSettingTab {
     // 用于兼容旧事项时长的完整定义
     const definitions = createReliefActivityDefinitions(settings.reliefActivities, true);
     // 全部事项的展开与收起操作
-    new Setting(this.containerEl).setName("配置详情").addButton((button) => button.setButtonText("全部展开").onClick(() => {
-      this.containerEl.querySelectorAll<HTMLDetailsElement>(".otv-relief-setting-card").forEach((card) => { card.open = true; });
+    new Setting(container).setName("配置详情").addButton((button) => button.setButtonText("全部展开").onClick(() => {
+      container.querySelectorAll<HTMLDetailsElement>(".otv-relief-setting-card").forEach((card) => { card.open = true; });
     })).addButton((button) => button.setButtonText("全部收起").onClick(() => {
-      this.containerEl.querySelectorAll<HTMLDetailsElement>(".otv-relief-setting-card").forEach((card) => { card.open = false; });
+      container.querySelectorAll<HTMLDetailsElement>(".otv-relief-setting-card").forEach((card) => { card.open = false; });
     }));
     settings.reliefActivities.forEach((activity, index) => {
       // 每项独立卡片，避免默认设置行挤压标题
-      const card = this.containerEl.createEl("details", { cls: "otv-relief-setting-card" });
+      const card = container.createEl("details", { cls: "otv-relief-setting-card" });
       card.open = this.expandedActivities.has(activity.type);
       card.ontoggle = () => { if (card.open) this.expandedActivities.add(activity.type); else this.expandedActivities.delete(activity.type); };
       // 折叠状态仍可识别事项名称与当前启用状态

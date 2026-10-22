@@ -1,5 +1,12 @@
 # Overtime Visualizer
 
+## 1.1.1 社区检查修复
+
+- 修复测试目录与桌面模块加载的检查问题，保留桌面下载目录导出和移动端笔记库备份。
+- 支持新版设置搜索，并保持事项独立保存与即时启用行为。
+- 更新安全依赖，调整样式兼容性并补充剪贴板与文件访问说明。
+- 发布附件新增来源证明工作流，构建一致后由 GitHub Actions 生成。
+
 ## 1.1.0 出勤趋势与合并备份
 
 - 压力趋势和每日列表、详情只展示有打卡的日期，保留单次打卡与休息日出勤。
@@ -68,6 +75,8 @@ The current version only supports the internal JD attendance data format. Attend
 
 - Attendance records, relief records, and plugin settings remain in the current Obsidian vault.
 - The plugin contains no telemetry, analytics, or advertising and does not upload attendance data to network services.
+- The system clipboard is written only when you click “Copy image” in the annual summary; clipboard contents are never read.
+- Desktop filesystem access is limited to creating JSON backups in your Downloads folder when you explicitly export. No background file scanning is performed.
 - Exported backups contain only allowlisted fields. Desktop exports are written to the current user’s Downloads folder; mobile exports remain in the vault’s 加班时长备份 folder.
 
 ## 中文
@@ -92,7 +101,7 @@ styles.css
 
 桌面版已迁出插件目录，独立项目位于本机 `/Users/dingxinyi.2/Documents/practice/overtime-visualizer/`。Electron 构建与安装包在独立项目维护，插件不再依赖桌面开发工具。
 
-统计、导入与数据迁移由 `@overtime-visualizer/core@0.1.0` 提供，通用图表和组件由 `@overtime-visualizer/ui@0.1.0` 提供。两份固定版本 tarball 随仓库保存在 `vendor/`，因此克隆本插件仓库后可独立执行 `npm ci`、测试和构建，无需旁边存在独立应用仓库。`src` 中相应目录仅保留包导出适配层；插件构建时会复制共享样式到 `styles.css`。
+统计、导入与数据迁移由 `@overtime-visualizer/core@0.1.0` 提供，通用图表和组件由 `@overtime-visualizer/ui@0.1.1` 提供。两份固定版本 tarball 随仓库保存在 `vendor/`，因此克隆本插件仓库后可独立执行 `npm ci`、测试和构建，无需旁边存在独立应用仓库。`src` 中相应目录仅保留包导出适配层；插件构建时会复制共享样式到 `styles.css`。
 
 更新流程见 [共享包说明](vendor/README.md)。
 
@@ -141,6 +150,8 @@ npm run lint
 
 - 所有考勤记录、舒缓记录和插件设置仅保存在当前 Obsidian 仓库的插件数据中。
 - 插件不包含遥测、分析或广告，不会把考勤数据上传到网络服务。
+- 仅点击年度总结的「复制图片」时写入系统剪贴板，不读取剪贴板内容。
+- 桌面文件系统访问仅用于用户主动导出时在下载目录创建 JSON 备份，不在后台扫描文件。
 - 导出的备份仅包含白名单字段；桌面端写入当前用户的 Downloads（下载）文件夹，移动端继续写入笔记库的「加班时长备份」目录。
 
 ## 发布文件
@@ -154,3 +165,9 @@ GitHub Release 的标签必须与 `manifest.json` 中的版本完全一致。每
 ## License
 
 [MIT](./LICENSE)
+
+## 发布产物证明
+
+`.github/workflows/attest-release.yml` 在 GitHub Release 发布后，对同一 Tag 运行测试、检查和构建；核对发布附件与重新构建的 `main.js`、`manifest.json`、`styles.css` 完全一致后，为附件生成 GitHub artifact attestations。若发布附件尚未上传，任务会失败；附件补齐后可在 Actions 中手动选择该 Tag 重跑。
+
+本地构建不会生成 GitHub 签名证明，新增工作流也不会回写旧版本检查结果；需要提交修复并发布新版本，再等待社区自动复检。

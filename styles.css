@@ -147,8 +147,8 @@
   text-align: right;
 }
 
-.otv-relief-panel__score-label {
-  color: var(--text-normal) !important;
+.otv-relief-panel__score .otv-relief-panel__score-label {
+  color: var(--text-normal);
   font-weight: 600;
 }
 
@@ -961,10 +961,10 @@
   font-weight: 500;
 }
 
-.otv-table__empty {
-  padding: 28px !important;
+.otv-table td.otv-table__empty {
+  padding: 28px;
   color: var(--text-faint);
-  text-align: center !important;
+  text-align: center;
 }
 
 .otv-status {
@@ -1304,10 +1304,10 @@
 }
 
 /* 原型统一视觉：仅限定于压力应用视图 */
-.otv-view.pv-app, .pv-share-modal {
+.otv-view.pv-app, .modal.pv-share-modal {
   --text-normal: #ecf1fa; --text-muted: #a9b8cd; --background-modifier-border: #34414f;
   --interactive-accent: #287fff; color: #ecf1fa; background: radial-gradient(ellipse at 70% 10%, #1d2834, #141e27 80%);
-  padding: 0 !important; font-size: 15px; min-height: 100%;
+  padding: 0; font-size: 15px; min-height: 100%;
 }
 .pv-app h1 { font-size: 32px; margin: 0 0 4px; font-weight: 750; letter-spacing: .5px; }
 .pv-app h2 { font-size: 20px; margin: 0 0 14px; font-weight: 650; }
@@ -1342,7 +1342,7 @@
 .pv-metric-icon { display: flex; justify-content: center; align-items: center; border-radius: 50%; padding: 14px; background: currentColor; position: relative; isolation: isolate; }
 .pv-metric-icon::before { content: ''; position: absolute; inset: 0; background: #202b36de; border-radius: 50%; z-index: -1; }
 .pv-metric-icon svg { width: 26px; height: 26px; }
-.pv-orange { color: #ff9e64 !important; } .pv-green { color: #68eca6 !important; } .pv-pink { color: #fa6ba9 !important; } .pv-blue { color: #a2c7fc !important; } .pv-purple { color: #c3a0ff !important; }
+:is(.pv-app, .pv-share-card) .pv-orange { color: #ff9e64; } :is(.pv-app, .pv-share-card) .pv-green { color: #68eca6; } :is(.pv-app, .pv-share-card) .pv-pink { color: #fa6ba9; } :is(.pv-app, .pv-share-card) .pv-blue { color: #a2c7fc; } :is(.pv-app, .pv-share-card) .pv-purple { color: #c3a0ff; }
 .pv-overview-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(310px, 1fr); gap: 14px; }
 .pv-overview-grid > div, .pv-side { min-width: 0; }
 .pv-overview-grid > div > .pv-panel { margin-bottom: 14px; }
@@ -1393,10 +1393,10 @@
 .pv-relief-row { display: flex; align-items: center; gap: 10px; border: 1px solid #34414f; padding: 12px; border-radius: 9px; margin-top: 10px; }
 .pv-relief-row span:first-child { flex: 1; font-size: 13px; }
 .pv-relief-row button { padding: 4px; border: none; background: none; }
-.pv-relief-add { font-size: 11px; padding: 6px !important; margin: 3px; }
+.pv-app .pv-relief-add { font-size: 11px; padding: 6px; margin: 3px; }
 .pv-share-card { position: relative; overflow: hidden; border-radius: 12px; border: 1px solid #536982; padding: 28px 22px; min-height: 285px; background: linear-gradient(155deg, #1b2634, #161e29 55%, #233344); isolation: isolate; }
 .pv-sunset { position: absolute; right: 25px; top: 42px; width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(#f76d9a, #b34475); box-shadow: 0 0 65px #f26f9250; z-index: -1; }
-.pv-sunset::after { content: ''; position: absolute; left: -200px; top: 45px; width: 430px; height: 160px; background: #172534; clip-path: polygon(0 45%, 15% 20%, 30% 35%, 42% 13%, 55% 40%, 70% 15%, 84% 0, 100% 25%, 100% 100%, 0 100%); }
+.pv-sunset::after { content: ''; position: absolute; left: -200px; top: 45px; width: 430px; height: 160px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpolygon fill='%23172534' points='0,45 15,20 30,35 42,13 55,40 70,15 84,0 100,25 100,100 0,100'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
 .pv-share-card h2 { font-size: 23px; position: relative; }
 .pv-share-card > p { white-space: pre-line; color: #e7edf5; margin-top: 30px; line-height: 1.6; }
 .pv-share-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 15px; margin-top: 32px; }
@@ -1409,8 +1409,8 @@
 .pv-share-departures > small { display: block; margin-top: 12px; font-size: 11px; line-height: 1.6; }
 .pv-share-card .pv-share-quote { text-align: right; font-size: 13px; font-style: italic; }
 .pv-wide { width: 100%; margin-top: 14px; }
-.pv-share-modal { padding: 24px !important; max-width: 650px; }
-.pv-legacy { margin: 0 26px 26px !important; }
+.modal.pv-share-modal { padding: 24px; max-width: 650px; }
+.pv-app .pv-legacy { margin: 0 26px 26px; }
 @media (max-width: 1100px) { .pv-overview-grid, .pv-daily-grid { grid-template-columns: 1fr; } .pv-heading { flex-wrap: wrap; } .pv-metric { gap: 10px; padding: 14px; } .pv-metric-icon { padding: 8px; } .pv-metric strong { font-size: 28px; } }
 @media (max-width: 650px) { .pv-body { padding: 12px; } .pv-nav { padding: 12px; gap: 5px; } .pv-brand { font-size: 20px; margin-right: 0; } .pv-local { display: none; } .pv-metrics { grid-template-columns: repeat(2,1fr); } .pv-calendars, .pv-bottom { grid-template-columns: 1fr; } .pv-table { font-size: 11px; } .pv-table td, .pv-table th { padding: 10px 5px; } .pv-table td:first-child { font-size: 13px; } .pv-panel { padding: 14px; } .pv-bar { grid-template-columns: 115px 1fr 55px; } }
 /* Obsidian 侧栏会压缩视图宽度，按内容容器而非屏幕宽度切换布局 */
@@ -1434,10 +1434,12 @@
 }
 .pv-app .otv-relief-action, .otv-relief-action { min-width: 0; white-space: normal; overflow-wrap: anywhere; height: auto; }
 .pv-relief-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; margin-bottom: 12px; }
-.pv-relief-shortcuts .pv-relief-add { margin: 0; white-space: normal; height: auto; padding: 10px !important; }
+.pv-app .pv-relief-shortcuts .pv-relief-add { margin: 0; white-space: normal; height: auto; padding: 10px; }
 
 /* 解压配置表单独立分组，避免 Obsidian 默认单行控件挤压标题 */
 .otv-relief-settings { container-type: inline-size; }
+/* 声明式设置行承载完整卡片表单，不沿用宿主横向控件布局 */
+.setting-item.otv-relief-settings { display: block; padding: 0; border: 0; }
 .otv-relief-settings .otv-relief-setting-card {
   margin: 14px 0; padding: 16px; border: 1px solid var(--background-modifier-border);
   border-radius: 10px; background: var(--background-secondary);
