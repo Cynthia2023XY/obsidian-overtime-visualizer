@@ -1,5 +1,5 @@
 import esbuild from "esbuild";
-import { readFileSync, copyFileSync } from "node:fs";
+import { readFileSync, copyFileSync, appendFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import process from "process";
 import { builtinModules } from "node:module";
@@ -7,6 +7,8 @@ import { builtinModules } from "node:module";
 /** 从插件固定版本依赖读取共享样式 */
 const require = createRequire(import.meta.url);
 copyFileSync(require.resolve("@overtime-visualizer/ui/styles.css"), "styles.css");
+// 保留插件自身的同步设置样式，避免共享样式复制时覆盖
+appendFileSync("styles.css", readFileSync(new URL("./src/ui/attendance-sync-settings.css", import.meta.url)));
 
 /** 构建产物顶部的自动生成声明 */
 const banner = `/*

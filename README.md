@@ -1,5 +1,12 @@
 # Overtime Visualizer
 
+## 1.2.0 本地考勤自动同步
+
+- 可选择从笔记库中的脱敏考勤文件自动导入，启动时及运行期间每 4 小时检查；支持随时手动同步。
+- 沿用考勤去重、人工修正保护和跨夜关联规则，校验完整快照后再写入。
+- 顺序处理后台导入和手动修改，避免并发写入覆盖数据；优化设置面板在新版 Obsidian 中的布局。
+- 考勤数据需要由独立的外部任务生成，插件不会连接考勤网站。
+
 ## 1.1.1 社区检查修复
 
 - 修复测试目录与桌面模块加载的检查问题，保留桌面下载目录导出和移动端笔记库备份。
@@ -29,6 +36,14 @@
 顶部「导入考勤」旁新增「导出全部」，一次导出考勤、解压明细和统计配置到一个 JSON 文件。点击「导入考勤」选择该合并文件，预览数量后确认即可一次恢复；考勤按日期、解压按 ID 合并，相同标识以备份为准，其余记录保留，重复导入不会增加重复记录。合并备份同时恢复统计规则及解压事项配置。
 
 仍提供「导出考勤」和「导出解压」，导出全部已保存的数据，不受页面筛选影响。桌面端默认保存到当前用户的 `Downloads`（下载）文件夹，成功后提示完整路径；命令面板备份及完整明细页也使用同一路径。移动端保留笔记库内「加班时长备份」目录。文件仍为可重新导入的 JSON。
+
+## 本地考勤自动同步
+
+插件设置中的「考勤自动同步」默认关闭。开启后，插件启动时及运行期间每 4 小时检查一次笔记库内指定 JSON 文件；也可使用「立即同步」或命令面板中的「从本地文件同步考勤」。默认位置为 `加班时长备份/自动同步/attendance.json`，可在设置中修改为笔记库内相对路径。插件不访问考勤网站，外部抓取任务需要独立运行并生成文件；Obsidian 未运行时不会导入。
+
+交换文件使用 `schemaVersion: 1`、`complete: true`、`capturedAt`（ISO 时间）、`startDate`、`endDate`、`total` 和 `list` 字段。`total` 必须与完整列表长度相同，日期格式为 `YYYY-MM-DD`。抓取端应核验接口成功及所有分页，只保留日期、上下班时间、星期、日类型、考勤状态和申请原因，并通过临时文件原子替换。导入保留人工修改，发现无效记录时整批不写入，并跳过已处理或更早的快照。
+
+交换文件位于笔记库中，可能被用户配置的笔记库同步服务复制到其他设备或云端；不应包含姓名、工号、打卡位置、登录凭证或考勤备注。
 
 ## 考勤日期展示
 
@@ -76,7 +91,7 @@ The current version only supports the internal JD attendance data format. Attend
 - Attendance records, relief records, and plugin settings remain in the current Obsidian vault.
 - The plugin contains no telemetry, analytics, or advertising and does not upload attendance data to network services.
 - The system clipboard is written only when you click “Copy image” in the annual summary; clipboard contents are never read.
-- Desktop filesystem access is limited to creating JSON backups in your Downloads folder when you explicitly export. No background file scanning is performed.
+- Desktop exports may write JSON backups to your Downloads folder when explicitly requested. Optional attendance synchronization periodically reads only the configured JSON path within the vault.
 - Exported backups contain only allowlisted fields. Desktop exports are written to the current user’s Downloads folder; mobile exports remain in the vault’s 加班时长备份 folder.
 
 ## 中文
@@ -151,7 +166,7 @@ npm run lint
 - 所有考勤记录、舒缓记录和插件设置仅保存在当前 Obsidian 仓库的插件数据中。
 - 插件不包含遥测、分析或广告，不会把考勤数据上传到网络服务。
 - 仅点击年度总结的「复制图片」时写入系统剪贴板，不读取剪贴板内容。
-- 桌面文件系统访问仅用于用户主动导出时在下载目录创建 JSON 备份，不在后台扫描文件。
+- 用户主动导出时，桌面端在下载目录创建 JSON 备份；可选的自动同步会定时读取笔记库内用户配置的单个 JSON 文件，不扫描其他文件。
 - 导出的备份仅包含白名单字段；桌面端写入当前用户的 Downloads（下载）文件夹，移动端继续写入笔记库的「加班时长备份」目录。
 
 ## 发布文件

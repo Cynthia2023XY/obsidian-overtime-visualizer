@@ -64,7 +64,7 @@ function setupSettings(declarative: boolean) {
   // 模拟磁盘保存入口并保留实际传入的完整配置
   const updateSettings = vi.fn((settings: typeof DEFAULT_SETTINGS) => { persisted = structuredClone(settings); return Promise.resolve(); });
   // 提供设置页所需的仓储与看板刷新边界
-  const plugin = { app: {}, repository: { getSettings: () => structuredClone(persisted), updateSettings }, refreshDashboard: vi.fn() } as unknown as OvertimeVisualizerPlugin;
+  const plugin = { app: {}, repository: { getSettings: () => structuredClone(persisted), updateSettings }, refreshDashboard: vi.fn(), syncSettings: { enabled: false, path: "同步/attendance.json" }, saveSyncSettings: vi.fn(), syncAttendanceFile: vi.fn() } as unknown as OvertimeVisualizerPlugin;
   // 两种宿主入口都创建真实设置页对象
   const tab = new OvertimeVisualizerSettingTab(plugin);
   // 设置表单的实际挂载容器
@@ -115,5 +115,26 @@ describe.each([false, true])("设置页保存行为（新版定义入口：%s）
     toggle.dispatchEvent(new Event("change"));
     await vi.waitFor(() => { expect(updateSettings).toHaveBeenCalledOnce(); });
     expect(current().reliefActivities[0]).toMatchObject({ name: DEFAULT_SETTINGS.reliefActivities[0]!.name, enabled: false });
+  });
+});
+
+describe("考勤自动同步设置", () => {
+  it("在新版设置项中单独纵向分组，并保存文件路径与开关", async () => {
+    // 模拟已有配置，验证表单只提交所选同步参数
+    const saveSyncSettings = vi.fn().mockResolvedValue(undefined);
+    const plugin = { app: {}, repository: { getSettings: () => structuredClone(DEFAULT_SETTINGS) }, syncSettings: { enabled: true, path: "原路径.json" }, saveSyncSettings, syncAttendanceFile: vi.fn() } as unknown as OvertimeVisualizerPlugin;
+    const tab = new OvertimeVisualizerSettingTab(plugin);
+    const host = document.body.appendChild(createDiv({ cls: "setting-item" }));
+    const definition = tab.getSettingDefinitions()[1]!;
+    if (!("render" in definition) || !definition.render) throw new Error("自动同步设置缺少渲染入口");
+    definition.render({ settingEl: host } as unknown as Setting, {} as never);
+    expect(host.classList.contains("otv-sync-settings-host")).toBe(true);
+    expect(host.children).toHaveLength(1);
+    const input = host.querySelector<HTMLInputElement>('[aria-label="考勤同步文件相对路径"]')!;
+    expect(input.closest("label")?.textContent).toContain("同步文件路径");
+    input.value = "自动同步/attendance.json";
+    const save = Array.from(host.querySelectorAll("button")).find((button) => button.textContent === "保存路径")!;
+    save.click();
+    await vi.waitFor(() => expect(saveSyncSettings).toHaveBeenCalledWith({ enabled: true, path: "自动同步/attendance.json" }));
   });
 });

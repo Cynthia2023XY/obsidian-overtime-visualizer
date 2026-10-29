@@ -1479,3 +1479,14 @@
   .otv-relief-setting-summary { gap: 8px; flex-wrap: wrap; }
   .otv-relief-setting-summary strong { flex-basis: 55%; }
 }
+/* 声明式设置项承载完整表单时恢复纵向布局 */
+.setting-item.otv-sync-settings-host { display: block; padding: 0; border: 0; min-width: 0; }
+.otv-sync-settings { width: 100%; min-width: 0; }
+.otv-sync-path-field { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+.otv-sync-path-field input { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.otv-sync-path-field small { color: var(--text-muted); }
+.otv-sync-settings .setting-item { gap: 12px; }
+@media (max-width: 560px) {
+  .otv-sync-settings .setting-item { flex-wrap: wrap; }
+  .otv-sync-settings .setting-item-info { min-width: 0; }
+}

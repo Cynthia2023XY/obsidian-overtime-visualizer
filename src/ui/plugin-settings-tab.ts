@@ -17,11 +17,38 @@ export class OvertimeVisualizerSettingTab extends PluginSettingTab {
       desc: "启用、事项名称、每次时长（分钟）、每次解压分；按事项独立保存。",
       aliases: this.plugin.repository.getSettings().reliefActivities.map((activity) => activity.name),
       render: (setting) => { this.renderSettings(setting.settingEl); },
+    }, {
+      name: "考勤自动同步",
+      desc: "从笔记库中的抓取文件定时导入考勤。",
+      render: (setting) => { setting.settingEl.empty(); setting.settingEl.addClass("otv-sync-settings-host"); this.renderSyncSettings(setting.settingEl); },
     }];
   }
 
   /** 旧版宿主继续展示相同表单，保持最低支持版本不变 */
-  display(): void { this.renderSettings(this.containerEl); }
+  display(): void { this.renderSettings(this.containerEl); this.renderSyncSettings(this.containerEl); }
+
+  /** 配置本地抓取文件和自动读取开关 */
+  private renderSyncSettings(container: HTMLElement): void {
+    // 独立分组避免宿主将表单的多个子项压缩在同一个设置行内
+    const section = container.createDiv({ cls: "otv-sync-settings" });
+    new Setting(section).setName("考勤自动同步").setHeading();
+    section.createEl("p", { text: "启用后每 4 小时检查笔记库内的脱敏考勤文件，并在启动时检查一次。抓取任务独立运行；请留意该文件可能随笔记库同步。" });
+    // 以完整宽度展示可编辑路径，避免被操作按钮挤压
+    const pathField = section.createEl("label", { cls: "otv-sync-path-field" });
+    pathField.createSpan({ text: "同步文件路径" });
+    const input = pathField.createEl("input", { type: "text", value: this.plugin.syncSettings.path });
+    input.setAttribute("aria-label", "考勤同步文件相对路径");
+    pathField.createEl("small", { text: "填写相对于当前笔记库的 JSON 文件路径，修改后点击保存。" });
+    new Setting(section).setName("自动读取考勤文件").addToggle((toggle) => toggle.setValue(this.plugin.syncSettings.enabled).onChange(async (enabled) => {
+      try { await this.plugin.saveSyncSettings({ enabled, path: input.value }); }
+      catch (error) { toggle.setValue(this.plugin.syncSettings.enabled); new Notice(error instanceof Error ? error.message : "同步设置保存失败"); }
+    }));
+    new Setting(section).setName("同步操作")
+      .addButton((button) => button.setButtonText("保存路径").onClick(async () => {
+        try { await this.plugin.saveSyncSettings({ enabled: this.plugin.syncSettings.enabled, path: input.value }); new Notice("考勤同步路径已保存"); }
+        catch (error) { new Notice(error instanceof Error ? error.message : "同步设置保存失败"); }
+      })).addButton((button) => button.setButtonText("立即同步").onClick(() => void this.plugin.syncAttendanceFile()));
+  }
 
   /** 两种宿主入口共享同一表单和保存行为 */
   private renderSettings(container: HTMLElement): void {
