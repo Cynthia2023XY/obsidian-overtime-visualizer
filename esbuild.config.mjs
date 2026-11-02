@@ -7,6 +7,7 @@ import { builtinModules } from "node:module";
 /** 从插件固定版本依赖读取共享样式 */
 const require = createRequire(import.meta.url);
 copyFileSync(require.resolve("@overtime-visualizer/ui/styles.css"), "styles.css");
+appendFileSync("styles.css", readFileSync(new URL("./src/ui/date-picker.css", import.meta.url)));
 // 保留插件自身的同步设置样式，避免共享样式复制时覆盖
 appendFileSync("styles.css", readFileSync(new URL("./src/ui/attendance-sync-settings.css", import.meta.url)));
 

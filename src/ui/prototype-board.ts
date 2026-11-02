@@ -14,6 +14,8 @@ import { renderReliefPanel } from "./relief-panel";
 import { copyShareImage } from "./share-image";
 import { createCombinedBackup } from "../backup/combined-backup";
 import { exportJson } from "../export/json-export";
+import { renderDatePicker } from "./date-picker";
+import { calculateDepartureTrend, getDepartureBridges } from "../analytics/departure-trend";
 import { getAttendanceDates } from "./attendance-dates";
 use([LineChart, GridComponent, LegendComponent, TooltipComponent, SVGRenderer]);
 /** 按原型组织三页导航、真实账本和本地编辑操作 */
@@ -196,13 +198,13 @@ export class PrototypeBoard {
             this.button(controls, "近30天", () => { this.start = shiftIsoDate(today, -29); this.end = today; this.render(); });
             this.button(controls, "本月", () => { this.start = `${today.slice(0, 7)}-01`; this.end = today; this.render(); });
             ["start", "end"].forEach((field) => {
-            // 统计日期输入控件
-            const input = controls.createEl("input", { type: "date" }); input.value = field === "start" ? this.start : this.end; input.setAttribute("aria-label", field === "start" ? "起始日期" : "结束日期"); input.onchange = () => { if (!input.value)
-                return; if (field === "start")
-                this.start = input.value;
-            else
-                this.end = input.value; if (this.start > this.end)
-                [this.start, this.end] = [this.end, this.start]; this.render(); }; });
+                renderDatePicker(controls, field === "start" ? "起始日期" : "结束日期", field === "start" ? this.start : this.end, (value) => {
+                    if (field === "start") this.start = value;
+                    else this.end = value;
+                    if (this.start > this.end) [this.start, this.end] = [this.end, this.start];
+                    this.render();
+                });
+            });
         }
         // 原型首屏统计卡
         // 业务摘要指标卡区域
@@ -272,7 +274,46 @@ export class PrototypeBoard {
             else
                 this.trend(lower, records.map((record) => record.date.slice(5)), [records.map((record) => record.endMinute === null ? null : record.endMinute / 60)], true);
         }
+        if (!annual) this.departureTrend(body);
         body.createEl("small", { cls: "pv-footnote", text: "个人记录指标 · 解压仅抵扣当日压力 · 数据仅保存在本地" });
+    }
+    /** 分别展示全量自然月与自然周趋势，缺失周期用独立虚线连接 */
+    private departureTrend(parent: HTMLElement): void {
+        ["month", "week"].forEach((unit) => {
+            // 月均与周均独立成图，不受概览区间筛选影响
+            const monthly = unit === "month";
+            // 当前图表对应的自然周期统计
+            const periods = calculateDepartureTrend(this.repository.list(), monthly ? "month" : "week");
+            // 独立图表标题与统计说明
+            const panel = this.panel(parent, monthly ? "月平均下班时间" : "周平均下班时间");
+            panel.createEl("p", { text: `全部考勤数据 · 周一至周四有效出勤 · ${monthly ? "按自然月统计" : "自然周为周一至周日"} · 虚线仅连接无数据区间` });
+            if (!periods.some((period) => period.count > 0)) {
+                panel.createEl("p", { text: "暂无周一至周四有效出勤数据" });
+                return;
+            }
+            // 当前图表的主题颜色
+            const color = monthly ? "#8bbcff" : "#66eaa5";
+            // 挂载节点由看板现有生命周期统一管理
+            const host = panel.createDiv({ cls: "pv-chart" });
+            // 每个缺口单独成线，避免跨越有效数据区间
+            const bridges = getDepartureBridges(periods);
+            // 当前独立图表实例
+            const chart = init(host, undefined, { renderer: "svg" });
+            chart.setOption({
+                color: [color],
+                grid: { left: 76, right: 24, top: 24, bottom: 42 },
+                tooltip: { trigger: "item", formatter: (item: { seriesName: string; data: { periodLabel: string; count: number; value: [number, number | null] } }) => item.seriesName === "无数据区间" ? "此区间无有效出勤数据，虚线仅用于连接趋势" : `${item.data.periodLabel}<br/>平均下班：${item.data.value[1] === null ? "暂无数据" : formatClockMinute(item.data.value[1])}<br/>有效出勤：${item.data.count} 天` },
+                xAxis: { type: "time", axisLabel: { color: "#b9c5d6", hideOverlap: true, formatter: (value: number) => new Date(value).toISOString().slice(0, monthly ? 7 : 10) }, axisLine: { lineStyle: { color: "#586575" } } },
+                yAxis: { type: "value", scale: true, minInterval: 1, axisLabel: { color: "#b9c5d6", formatter: (value: number) => formatClockMinute(Math.round(value)) }, splitLine: { lineStyle: { color: "#34414e", type: "dashed" } } },
+                series: [
+                    { name: monthly ? "自然月平均" : "自然周平均", type: "line", connectNulls: false, smooth: 0.35, smoothMonotone: "x", showSymbol: true, symbolSize: 7, lineStyle: { color, width: 3 }, itemStyle: { color }, z: 3, data: periods.map((period) => ({ value: [Date.parse(`${period.start}T00:00:00Z`), period.minute], periodLabel: `${period.start} 至 ${period.end}`, count: period.count })) },
+                    ...bridges.map((bridge) => ({ name: "无数据区间", type: "line", showSymbol: false, smooth: 0.35, smoothMonotone: "x", lineStyle: { color, width: 2, type: "dashed", opacity: 0.7 }, data: bridge.map((period) => [Date.parse(`${period.start}T00:00:00Z`), period.minute]) })),
+                ],
+            });
+            this.charts.push(chart);
+            this.observer ??= new ResizeObserver(() => this.charts.forEach((item) => item.resize()));
+            this.observer.observe(host);
+        });
     }
     /** 判断记录是否需要人工处理 */
     private pending(date: string): boolean {

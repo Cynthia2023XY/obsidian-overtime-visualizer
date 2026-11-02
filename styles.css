@@ -1479,6 +1479,31 @@
   .otv-relief-setting-summary { gap: 8px; flex-wrap: wrap; }
   .otv-relief-setting-summary strong { flex-basis: 55%; }
 }
+/* 概览日期筛选与主题统一，浮层随焦点关闭。 */
+.pv-date-picker { position: relative; }
+.pv-app .pv-date-trigger { display: flex; align-items: center; gap: 10px; padding: 8px 13px; min-width: 154px; text-align: left; }
+.pv-date-icon { display: flex; color: #8bbcff; }
+.pv-date-icon svg { width: 18px; height: 18px; }
+.pv-date-trigger small { display: block; font-size: 10px; color: #a9b8cd; margin-bottom: 2px; }
+.pv-date-trigger span span { font-size: 14px; font-variant-numeric: tabular-nums; }
+.pv-app .pv-date-trigger[aria-expanded=true] { border-color: #619eff; background: #253c56; }
+.pv-date-popover { position: absolute; top: calc(100% + 10px); right: 0; z-index: 50; width: min(302px, calc(100vw - 52px)); padding: 14px; border: 1px solid #42546a; border-radius: 16px; background: #1c2936; box-shadow: 0 18px 48px #0007; }
+.pv-date-popover[hidden] { display: none; }
+.pv-date-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.pv-date-header strong { font-size: 14px; }
+.pv-app .pv-date-header button { display: flex; padding: 6px; border-color: transparent; background: transparent; }
+.pv-date-header svg { width: 17px; height: 17px; }
+.pv-date-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.pv-date-weekday { text-align: center; color: #8fa2b9; font-size: 11px; padding: 5px 0 9px; }
+.pv-app .pv-date-grid button { padding: 0; height: 34px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pv-app .pv-date-grid button:hover { background: #30475e; border-color: #537da6; }
+.pv-app .pv-date-grid .is-outside { color: #697d94; }
+.pv-app .pv-date-grid .is-today { border-color: #598ec4; color: #99caff; }
+.pv-app .pv-date-grid .is-selected { background: #347fe5; color: white; border-color: #6eaaff; font-weight: 700; }
+.pv-date-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px solid #344252; color: #91a4bb; font-size: 11px; }
+.pv-app .pv-date-footer button { padding: 5px 12px; color: #9bcaff; font-size: 12px; }
+.pv-date-picker button:focus-visible { outline: 2px solid #9bcaff; outline-offset: 2px; }
+@media (max-width: 600px) { .pv-date-popover { right: auto; left: 0; } .pv-date-picker:last-child .pv-date-popover { left: auto; right: 0; } }
 /* 声明式设置项承载完整表单时恢复纵向布局 */
 .setting-item.otv-sync-settings-host { display: block; padding: 0; border: 0; min-width: 0; }
 .otv-sync-settings { width: 100%; min-width: 0; }
