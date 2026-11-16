@@ -128,3 +128,30 @@ describe("仅展示实际打卡日期", () => {
         expect(root.querySelector("h2")).toBeNull();
     });
 });
+
+describe("平均压力面板", () => {
+    it("默认只展示原始压力，月周开关独立且勾选后可撤销，重绘保留滚动位置", () => {
+        vi.mocked(init).mockClear();
+        // 已结算的周末考勤同时拥有解压记录，验证最终压力确实降低
+        const { root, board } = renderBoard([attendance("2026-10-18", 540, 1380)], "概览");
+        // 从标题定位两个新增面板，不依赖图表创建顺序
+        const panels = () => Array.from(root.querySelectorAll<HTMLElement>(".pv-panel")).filter((panel) => /[月周]平均压力指数/.test(panel.querySelector("h2")?.textContent ?? ""));
+        // 读取挂载在指定面板内的图表配置
+        const option = (panel: HTMLElement) => {
+            // 根据 ECharts 初始化时的宿主节点匹配实例
+            const index = vi.mocked(init).mock.calls.findIndex(([host]) => host === panel.querySelector(".pv-chart"));
+            return (vi.mocked(init).mock.results[index]!.value as { setOption: ReturnType<typeof vi.fn> }).setOption.mock.calls[0]![0] as { series: { name: string; data: { value: number[] }[] }[] };
+        };
+        expect(panels()).toHaveLength(2);
+        expect(panels().map((panel) => option(panel).series.map((series) => series.name))).toEqual([["原始加班压力"], ["原始加班压力"]]);
+        root.scrollTop = 360;
+        panels()[0]!.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+        expect(root.scrollTop).toBe(360);
+        expect(option(panels()[0]!).series.map((series) => series.name)).toEqual(["原始加班压力", "最终压力"]);
+        expect(option(panels()[0]!).series[1]!.data[0]!.value[1]).toBeLessThan(option(panels()[0]!).series[0]!.data[0]!.value[1]!);
+        expect(option(panels()[1]!).series).toHaveLength(1);
+        panels()[0]!.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
+        expect(option(panels()[0]!).series).toHaveLength(1);
+        board.destroy();
+    });
+});

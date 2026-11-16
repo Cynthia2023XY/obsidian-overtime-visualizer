@@ -17,6 +17,7 @@ import { exportJson } from "../export/json-export";
 import { renderDatePicker } from "./date-picker";
 import { calculateDepartureTrend, getDepartureBridges } from "../analytics/departure-trend";
 import { getAttendanceDates } from "./attendance-dates";
+import { calculatePressureTrend } from "../analytics/pressure-trend";
 use([LineChart, GridComponent, LegendComponent, TooltipComponent, SVGRenderer]);
 /** 按原型组织三页导航、真实账本和本地编辑操作 */
 export class PrototypeBoard {
@@ -42,6 +43,8 @@ export class PrototypeBoard {
     private observer: ResizeObserver | null = null;
     /** 概览下方当前图表页签 */
     private chartTab = "日历热力";
+    /** 月均和周均压力图各自控制是否叠加最终压力曲线 */
+    private showFinalPressure = { month: false, week: false };
     /** 注入 Obsidian 环境与本地仓储 */
     constructor(private app: App, private repository: PluginDataRepository, private root: HTMLElement, page = "概览") { this.page = page; }
     /** 清理图表和尺寸监听 */
@@ -274,7 +277,10 @@ export class PrototypeBoard {
             else
                 this.trend(lower, records.map((record) => record.date.slice(5)), [records.map((record) => record.endMinute === null ? null : record.endMinute / 60)], true);
         }
-        if (!annual) this.departureTrend(body);
+        if (!annual) {
+            this.departureTrend(body);
+            this.pressureTrend(body);
+        }
         body.createEl("small", { cls: "pv-footnote", text: "个人记录指标 · 解压仅抵扣当日压力 · 数据仅保存在本地" });
     }
     /** 分别展示全量自然月与自然周趋势，缺失周期用独立虚线连接 */
@@ -309,6 +315,64 @@ export class PrototypeBoard {
                     { name: monthly ? "自然月平均" : "自然周平均", type: "line", connectNulls: false, smooth: 0.35, smoothMonotone: "x", showSymbol: true, symbolSize: 7, lineStyle: { color, width: 3 }, itemStyle: { color }, z: 3, data: periods.map((period) => ({ value: [Date.parse(`${period.start}T00:00:00Z`), period.minute], periodLabel: `${period.start} 至 ${period.end}`, count: period.count })) },
                     ...bridges.map((bridge) => ({ name: "无数据区间", type: "line", showSymbol: false, smooth: 0.35, smoothMonotone: "x", lineStyle: { color, width: 2, type: "dashed", opacity: 0.7 }, data: bridge.map((period) => [Date.parse(`${period.start}T00:00:00Z`), period.minute]) })),
                 ],
+            });
+            this.charts.push(chart);
+            this.observer ??= new ResizeObserver(() => this.charts.forEach((item) => item.resize()));
+            this.observer.observe(host);
+        });
+    }
+    /** 展示全量月均与周均压力，勾选后叠加逐日解压抵扣的最终压力 */
+    private pressureTrend(parent: HTMLElement): void {
+        (["month", "week"] as const).forEach((unit) => {
+            // 自然月与自然周沿用下班时间面板的布局和日期轴
+            const monthly = unit === "month";
+            // 平均值只使用已结算的考勤日期，原始与最终压力保持相同分母
+            const periods = calculatePressureTrend(this.repository.list(), this.repository.listReliefEntries(), formatLocalIsoDate(new Date()), unit, this.repository.getSettings().reliefActivities);
+            // 独立压力趋势卡片
+            const panel = this.panel(parent, monthly ? "月平均压力指数" : "周平均压力指数");
+            panel.createEl("p", { text: `全部考勤数据 · 已结算考勤日均（含周末及零压力日） · ${monthly ? "按自然月统计" : "自然周为周一至周日"} · 虚线仅连接无数据区间` });
+            // 使用原生复选框提供可键盘操作的最终压力开关
+            const label = panel.createEl("label", { cls: "pv-controls" });
+            // 两个面板分别保留本次看板会话内的勾选状态
+            const toggle = label.createEl("input", { type: "checkbox" });
+            toggle.checked = this.showFinalPressure[unit];
+            label.createSpan({ text: "显示解压抵扣后的最终压力" });
+            toggle.onchange = () => { this.showFinalPressure[unit] = toggle.checked; this.render(true); };
+            if (!periods.some((period) => period.count > 0)) {
+                panel.createEl("p", { text: "暂无已结算考勤数据（当天及缺失下班时间的记录不计入）" });
+                return;
+            }
+            // 图表节点由看板统一处理缩放和销毁
+            const host = panel.createDiv({ cls: "pv-chart" });
+            // 每条曲线以相同周期和样本数绘制
+            const series = (["overtime", ...(this.showFinalPressure[unit] ? ["final" as const] : [])] as const).flatMap((key) => {
+                // 原始压力与最终压力使用稳定的图例名称
+                const name = key === "overtime" ? "原始加班压力" : "最终压力";
+                // 保持原始压力橙色、最终压力粉色的既有语义
+                const color = key === "overtime" ? "#ff9d61" : "#f66aab";
+                // 仅在两个真实周期之间连接缺口，不填补数值
+                const bridges: [number, number][][] = [];
+                // 最近的有效周期索引用来识别中间缺口
+                let previous = -1;
+                periods.forEach((period, index) => {
+                    if (period[key] === null) return;
+                    if (previous >= 0 && index > previous + 1) bridges.push([previous, index].map((position) => [Date.parse(`${periods[position]!.start}T00:00:00Z`), periods[position]![key]!]));
+                    previous = index;
+                });
+                return [
+                    { name, type: "line", connectNulls: false, smooth: 0.35, smoothMonotone: "x", symbolSize: 7, lineStyle: { color, width: 3 }, itemStyle: { color }, data: periods.map((period) => ({ value: [Date.parse(`${period.start}T00:00:00Z`), period[key]], periodLabel: `${period.start} 至 ${period.end}`, count: period.count })) },
+                    ...bridges.map((data) => ({ name, type: "line", showSymbol: false, silent: true, tooltip: { show: false }, lineStyle: { color, width: 2, type: "dashed", opacity: 0.7 }, data })),
+                ];
+            });
+            // 当前压力图实例复用现有 SVG 渲染和生命周期
+            const chart = init(host, undefined, { renderer: "svg" });
+            chart.setOption({
+                legend: { top: 4, right: 8, textStyle: { color: "#b9c5d6" } },
+                grid: { left: 76, right: 24, top: 48, bottom: 42 },
+                tooltip: { trigger: "item", formatter: (item: { seriesName: string; data: { periodLabel: string; count: number; value: [number, number | null] } }) => `${item.data.periodLabel}<br/>${item.seriesName}：${item.data.value[1]?.toFixed(2) ?? "暂无数据"} 分/天<br/>已结算考勤：${item.data.count} 天` },
+                xAxis: { type: "time", axisLabel: { color: "#b9c5d6", hideOverlap: true, formatter: (value: number) => new Date(value).toISOString().slice(0, monthly ? 7 : 10) }, axisLine: { lineStyle: { color: "#586575" } } },
+                yAxis: { type: "value", min: 0, name: "分/天", nameTextStyle: { color: "#b9c5d6" }, axisLabel: { color: "#b9c5d6" }, splitLine: { lineStyle: { color: "#34414e", type: "dashed" } } },
+                series,
             });
             this.charts.push(chart);
             this.observer ??= new ResizeObserver(() => this.charts.forEach((item) => item.resize()));
