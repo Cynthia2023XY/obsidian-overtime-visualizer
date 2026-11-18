@@ -1,0 +1,190 @@
+
+.otv-relief-calendar {
+  container-type: inline-size;
+}
+
+.otv-relief-calendar__layout {
+  display: grid;
+  gap: 16px;
+}
+
+.otv-relief-calendar__month {
+  width: 100%;
+  max-width: 368px;
+  min-width: 0;
+}
+
+.otv-relief-calendar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.otv-relief-calendar__navigation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pv-app .otv-relief-calendar__navigation strong {
+  color: #e8effa;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.pv-app .otv-relief-calendar__controls button {
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  background: #283646;
+  font-size: 12px;
+}
+
+.pv-app .otv-relief-calendar__navigation button {
+  width: 32px;
+  padding: 0;
+  font-size: 18px;
+}
+
+.pv-app button.otv-relief-calendar__today {
+  color: #a2c7fc;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.pv-app .otv-relief-calendar .pv-calendar-grid button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 0 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #283646;
+  font-variant-numeric: tabular-nums;
+}
+
+.otv-relief-calendar .pv-weekday {
+  white-space: nowrap;
+}
+
+.pv-app .otv-relief-calendar .pv-calendar-grid button.is-future {
+  background: #24303c;
+  color: #a0afc0;
+}
+
+.pv-app .otv-relief-calendar .pv-calendar-grid button:hover,
+.pv-app .otv-relief-calendar__controls button:hover {
+  background: #33495e;
+}
+
+.pv-app .otv-relief-calendar .pv-calendar-grid button.is-active {
+  color: #e8f3ff;
+  border-color: #4b9eff;
+  background: #2b507b;
+}
+
+.otv-relief-calendar button:focus-visible {
+  outline: 2px solid #a2c7fc;
+  outline-offset: 1px;
+}
+
+.otv-relief-calendar .pv-calendar-grid button.has-relief::after,
+.otv-relief-calendar__legend::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #68eca6;
+}
+
+.otv-relief-calendar .pv-calendar-grid button.has-relief::after {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.pv-app .otv-relief-calendar__legend {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.otv-relief-calendar__detail {
+  min-width: 0;
+  padding: 14px;
+  background: #1b2632;
+  border-radius: 10px;
+}
+
+.otv-relief-calendar__detail-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.pv-app .otv-relief-calendar__detail-heading h3 {
+  margin: 0;
+}
+
+.otv-relief-calendar__attendance {
+  color: #b4c4d8;
+  background: #2b3948;
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.pv-app .otv-relief-calendar__detail p {
+  margin: 4px 0 10px;
+  font-size: 13px;
+}
+
+.pv-app .otv-relief-calendar__score strong {
+  color: #68eca6;
+  font-size: 18px;
+}
+
+.otv-relief-calendar__detail .pv-relief-shortcuts {
+  margin-bottom: 0;
+}
+
+.otv-relief-calendar__detail .pv-relief-row {
+  padding: 8px;
+  gap: 6px;
+}
+
+.otv-relief-calendar__detail .pv-relief-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.otv-relief-calendar__detail .pv-relief-row strong {
+  white-space: nowrap;
+}
+
+.otv-relief-calendar__detail .pv-relief-row .pv-icon {
+  margin-right: 0;
+}
+
+@container (min-width: 640px) {
+  .otv-relief-calendar__layout {
+    grid-template-columns: minmax(0, 368px) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+  }
+}
+
+.pv-table .otv-daily-weekday {
+  margin-top: 4px;
+  font-weight: 500;
+}

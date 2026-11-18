@@ -1,0 +1,14 @@
+
+.pv-app .otv-pressure-band {
+  grid-template-columns: minmax(max-content, 165px) minmax(0, 1fr) max-content;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.otv-pressure-band > span {
+  white-space: nowrap;
+}
+
+.otv-pressure-band small {
+  margin-inline-start: 7px;
+}

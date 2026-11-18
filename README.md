@@ -1,5 +1,12 @@
 # Overtime Visualizer
 
+## 1.5.0 解压日历与月份筛选
+
+- 概览常驻「解压日历」，打开时默认选中今天。有解压记录的日期以绿点标记，可跨月查看。
+- 选中任意日期即可补录、修改或删除当天的解压事项，考勤尚未同步时也可以记录。宽栏并排显示月历与明细，窄栏上下排列。
+- 「每日记录」在日期旁显示星期，并提供中文月份选择器，支持跨年浏览和一键回到本月。空月份也能完整打开选择器。
+- 「压力构成」在各下班时段旁显示单日压力分，并保留对应天数。
+
 ## 1.4.0 月周平均压力指数
 
 - 新增月平均压力指数、周平均压力指数面板，沿用平均下班时间图表样式。
@@ -62,7 +69,7 @@
 ## 考勤日期展示
 
 - 概览压力趋势与每日记录只展示至少有一次上班或下班打卡的日期，不按工作日、休息日区分。
-- 无打卡日期及仅有解压记录的日期不展示；原始考勤与解压数据仍保留。
+- 无打卡日期及仅有解压记录的日期可以在「概览 → 解压日历」中查看和补录解压。
 - 每日详情与列表使用同一筛选结果，前后切换会跳过无考勤日期；压力曲线平滑连接实际出勤日期，数值不变。
 
 ## English
@@ -73,6 +80,9 @@ Overtime Visualizer is an offline-first Obsidian dashboard for reviewing late de
 
 - Calculates a standardized workload pressure score for the latest 30 days.
 - Groups late departures into six mutually exclusive time ranges, including overnight work.
+- Shows the daily pressure score and attendance count for each late-departure range.
+- Lets you add, edit, or delete relief records by date from the overview calendar, even before attendance data has synced.
+- Shows weekdays in daily records and provides a month picker with year navigation and a shortcut to the current month.
 - Displays daily departure trends, reference lines, weekend markers, and a 30-day heatmap.
 - Provides a dedicated attendance data management view.
 - Imports attendance records from JSON files, JSON code blocks in Markdown, or pasted text.

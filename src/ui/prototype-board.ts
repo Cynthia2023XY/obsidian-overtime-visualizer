@@ -4,20 +4,22 @@ import { LineChart } from "echarts/charts";
 import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
 import { SVGRenderer } from "echarts/renderers";
 import type { PluginDataRepository } from "../repository/plugin-data-repository";
+import type { ReliefEntry } from "../types/storage";
+import type { ReliefActivitySetting } from "../settings";
 import { calculateDailyPressureLedger, calculateReliefScore, createReliefActivityDefinitions, summarizePressureLedger } from "../analytics/pressure-ledger";
 import { calculateAnnualDepartureSummary, calculateWorkloadMetrics } from "../analytics/workload-evaluation";
 import { formatLocalIsoDate, shiftIsoDate } from "../utils/date";
 import { formatClockMinute } from "../utils/time";
 import { ImportPreviewModal } from "./import-preview-modal";
 import { DailyAttendanceModal, ReliefEditModal } from "./data-management-modals";
-import { renderReliefPanel } from "./relief-panel";
 import { copyShareImage } from "./share-image";
 import { createCombinedBackup } from "../backup/combined-backup";
 import { exportJson } from "../export/json-export";
-import { renderDatePicker } from "./date-picker";
+import { renderDatePicker, renderMonthPicker } from "./date-picker";
 import { calculateDepartureTrend, getDepartureBridges } from "../analytics/departure-trend";
 import { getAttendanceDates } from "./attendance-dates";
 import { calculatePressureTrend } from "../analytics/pressure-trend";
+import { formatWeekday, renderMonthDays } from "./month-calendar";
 use([LineChart, GridComponent, LegendComponent, TooltipComponent, SVGRenderer]);
 /** 按原型组织三页导航、真实账本和本地编辑操作 */
 export class PrototypeBoard {
@@ -25,6 +27,8 @@ export class PrototypeBoard {
     private page: string;
     /** 当前每日详情日期 */
     private selected = "";
+    /** 解压日历的选中日期，未选择时跟随本地当天 */
+    private reliefDate: string | null = null;
     /** 每日记录的月份筛选 */
     private month = formatLocalIsoDate(new Date()).slice(0, 7);
     /** 每日状态筛选 */
@@ -152,11 +156,16 @@ export class PrototypeBoard {
         this.observer.observe(host);
     }
     /** 创建按比例表达天数或小时数的横向统计条 */
-    private bar(parent: HTMLElement, label: string, value: number, maximum: number, suffix: string, tone = "green"): void {
+    private bar(parent: HTMLElement, label: string, value: number, maximum: number, suffix: string, tone = "green", labelDetail?: string): void {
         // 单项分布条
         // 当前数据展示行
         const row = parent.createDiv({ cls: `pv-bar pv-${tone}` });
-        row.createSpan({ text: label });
+        // 时段与单日分值同行展示，右侧继续显示统计天数
+        const caption = row.createSpan({ text: label });
+        if (labelDetail) {
+            row.addClass("otv-pressure-band");
+            caption.createEl("small", { text: labelDetail });
+        }
         // 填充比例以真实统计计算
         // 统计条的比例轨道
         const track = row.createDiv({ cls: "pv-track" });
@@ -255,7 +264,10 @@ export class PrototypeBoard {
             createReliefActivityDefinitions(settings).forEach((definition) => this.bar(habits, definition.label, entries.filter((entry) => entry.type === definition.type).reduce((sum, entry) => sum + entry.durationMinutes, 0) / 60, Math.max(1, ...createReliefActivityDefinitions(settings).map((item) => entries.filter((entry) => entry.type === item.type).reduce((sum, entry) => sum + entry.durationMinutes, 0) / 60)), "小时"));
         }
         else {
-            renderReliefPanel(side, today, this.repository.get(today) ?? undefined, this.repository.listReliefEntries().filter((entry) => entry.date === today), settings, { onAdd: async (type, minutes) => { await this.repository.addReliefEntry(today, type, minutes); this.render(true); }, onUndo: async (id) => { await this.repository.deleteReliefEntry(id); this.render(true); } });
+            // 常驻日历统一展示今日解压和历史明细
+            const calendar = this.panel(side, "解压日历");
+            calendar.addClass("otv-relief-calendar");
+            this.reliefCalendar(calendar.createDiv({ cls: "otv-relief-calendar__layout" }), today);
             this.button(side, "查看今日记录 →", () => this.navigate("每日记录", today));
             // 需要人工核对的记录区域
             const pending = this.panel(side, "需要处理");
@@ -272,8 +284,10 @@ export class PrototypeBoard {
             ["下班时间", "日历热力", "压力构成"].forEach((tab) => this.button(tabs, tab, () => { this.chartTab = tab; this.render(); }, undefined, this.chartTab === tab ? "is-active" : ""));
             if (this.chartTab === "日历热力")
                 this.calendar(lower);
-            else if (this.chartTab === "压力构成")
-                metrics.departureBands.forEach((band) => this.bar(lower, band.label, band.count, Math.max(1, metrics.validAttendanceDays), "天", "pink"));
+            else if (this.chartTab === "压力构成") {
+                metrics.departureBands.forEach((band) => this.bar(lower, band.label, band.count, Math.max(1, metrics.validAttendanceDays), "天", "pink", `${band.score} 分/天`));
+                lower.createEl("small", { text: "时段分值适用于周一至周五。周六、周日有下班记录时按 6 分/天计。" });
+            }
             else
                 this.trend(lower, records.map((record) => record.date.slice(5)), [records.map((record) => record.endMinute === null ? null : record.endMinute / 60)], true);
         }
@@ -394,18 +408,7 @@ export class PrototypeBoard {
             // 单月日历容器
             const calendar = group.createDiv({ cls: "pv-calendar" });
             calendar.createEl("h3", { text: `${month.slice(0, 4)}年${Number(month.slice(5))}月` });
-            // 按周一排列的日期网格
-            const cells = calendar.createDiv({ cls: "pv-calendar-grid" });
-            ["一", "二", "三", "四", "五", "六", "日"].forEach((day) => cells.createSpan({ text: `周${day}`, cls: "pv-weekday" }));
-            // 当月首日用于推算星期空位
-            const first = new Date(`${month}-01T00:00:00Z`);
-            for (let i = 0; i < (first.getUTCDay() + 6) % 7; i++)
-                cells.createSpan();
-            // 当前月份包含的自然日数量
-            const days = new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate();
-            for (let day = 1; day <= days; day++) {
-                // 当前日历单元对应日期
-                const date = `${month}-${String(day).padStart(2, "0")}`;
+            renderMonthDays(calendar, month, (cells, date, day) => {
                 // 当前日期的考勤事实
                 const record = this.repository.get(date);
                 // 当日封顶抵扣后的压力结算
@@ -415,9 +418,94 @@ export class PrototypeBoard {
                 if (record?.endMinute !== null && record?.endMinute !== undefined)
                     cell.style.backgroundColor = `rgba(246,106,171,${0.08 + Math.min(ledger.overtimeScore / 12, 1) * 0.85})`;
                 cell.title = `${date} · ${record?.endMinute == null ? "无有效下班时间" : formatClockMinute(record.endMinute)}`;
-            }
+            });
         });
         parent.createDiv({ cls: "pv-calendar-legend", text: "无数据  ░ ▒ ▓ 压力由低到高 · 点击日期查看记录" });
+    }
+    /** 在概览中按自然日浏览和修改解压记录 */
+    private reliefCalendar(host: HTMLElement, today: string): void {
+        host.empty();
+        // 日历与明细共用的日期，不依赖仓储中是否有该日考勤
+        const date = this.reliefDate ?? today;
+        // 选中日期所在的月份
+        const month = date.slice(0, 7);
+        // 用于标记有记录的日期并提取当前日明细的完整数据
+        const entries = this.repository.listReliefEntries();
+        // 有解压明细的日期显示圆点
+        const recordedDates = new Set(entries.map((entry) => entry.date));
+        // 月份切换后只刷新日历，并恢复键盘焦点
+        const select = (target: string, focus: string) => {
+            this.reliefDate = target === today ? null : target;
+            this.reliefCalendar(host, today);
+            host.querySelector<HTMLElement>(focus)?.focus();
+        };
+        // 月历与当日明细分栏展示，便于选中日期后直接查看
+        const monthPanel = host.createDiv({ cls: "otv-relief-calendar__month" });
+        // 月份浏览与返回当天的操作栏
+        const controls = monthPanel.createDiv({ cls: "otv-relief-calendar__controls" });
+        // 翻月箭头与标题作为一组，窄栏换行时保持相邻
+        const navigation = controls.createDiv({ cls: "otv-relief-calendar__navigation" });
+        this.button(navigation, "‹", () => select(shiftIsoDate(`${month}-01`, -1), ".otv-relief-calendar__previous"), undefined, "otv-relief-calendar__previous")
+            .setAttribute("aria-label", "上个月");
+        navigation.createEl("strong", { text: `${month.slice(0, 4)}年${Number(month.slice(5))}月` });
+        this.button(navigation, "›", () => select(`${shiftIsoDate(`${month}-01`, 32).slice(0, 7)}-01`, ".otv-relief-calendar__next"), undefined, "otv-relief-calendar__next")
+            .setAttribute("aria-label", "下个月");
+        this.button(controls, "回到今天", () => select(today, '[aria-pressed="true"]'), undefined, "otv-relief-calendar__today");
+        renderMonthDays(monthPanel, month, (cells, dayDate, day) => {
+            // 每个自然日均可进入解压编辑，包括完全无考勤数据的日期
+            const cell = this.button(cells, String(day), () => select(dayDate, '[aria-pressed="true"]'), undefined, dayDate === date ? "is-active" : "");
+            cell.classList.toggle("is-future", dayDate > today);
+            // 记录状态同时提供给视觉标记与辅助技术
+            const hasEntries = recordedDates.has(dayDate);
+            cell.classList.toggle("has-relief", hasEntries);
+            cell.setAttribute("aria-label", `${dayDate} ${formatWeekday(dayDate)}${hasEntries ? "，有解压记录" : ""}`);
+            cell.setAttribute("aria-pressed", String(dayDate === date));
+            if (dayDate === today)
+                cell.setAttribute("aria-current", "date");
+        });
+        monthPanel.createEl("small", { cls: "otv-relief-calendar__legend", text: "有解压记录" });
+
+        // 当前日期的解压明细与业务配置
+        const dayEntries = entries.filter((entry) => entry.date === date);
+        // 个人设置计算解压分并决定可补录的事项
+        const settings = this.repository.getSettings().reliefActivities;
+        // 考勤尚未同步时仍提供同一套解压编辑操作
+        const record = this.repository.get(date);
+        // 所选日期与当日累计分数
+        const detail = host.createDiv({ cls: "otv-relief-calendar__detail" });
+        // 日期标题旁直接提示考勤是否已有打卡时间
+        const detailHeading = detail.createDiv({ cls: "otv-relief-calendar__detail-heading" });
+        detailHeading.createEl("h3", { text: `${date} · ${formatWeekday(date)}` });
+        if (record?.startMinute == null && record?.endMinute == null)
+            detailHeading.createSpan({ cls: "otv-relief-calendar__attendance", text: "暂无打卡" });
+        // 累计分数使用与今日解压卡片一致的绿色
+        const total = detail.createEl("p", { cls: "otv-relief-calendar__score", text: "累计解压 " });
+        total.createEl("strong", { text: `${calculateReliefScore(dayEntries, settings)} 分` });
+        if (!dayEntries.length)
+            detail.createEl("p", { text: "当天暂无解压记录" });
+        this.reliefRecords(detail, date, dayEntries, settings);
+    }
+    /** 为指定日期提供补录、修改及删除解压明细的操作 */
+    private reliefRecords(parent: HTMLElement, date: string, entries: ReliefEntry[], settings: ReliefActivitySetting[]): void {
+        // 事项快捷入口随可用宽度和事项数量换行
+        const shortcuts = parent.createDiv({ cls: "pv-relief-shortcuts" });
+        // 历史明细可以继续显示已停用的个人事项名称
+        const historyDefinitions = createReliefActivityDefinitions(settings, true);
+        createReliefActivityDefinitions(settings).forEach((definition) => this.button(shortcuts, `+ ${definition.label}`, () => {
+            void this.repository.addReliefEntry(date, definition.type, definition.incrementMinutes)
+                .then(() => this.render(true), () => new Notice("添加解压记录失败"));
+        }, undefined, "pv-relief-add"));
+        entries.forEach((entry) => {
+            // 一条解压明细的名称、时长和编辑操作
+            const row = parent.createDiv({ cls: "pv-relief-row" });
+            row.createSpan({ text: `${historyDefinitions.find((item) => item.type === entry.type)?.label ?? entry.type} · ${entry.durationMinutes} 分钟` });
+            row.createEl("strong", { cls: "pv-pink", text: `${calculateReliefScore([entry], settings)} 分` });
+            this.button(row, "", () => new ReliefEditModal(this.app, this.repository, entry, () => this.render(true)).open(), "pencil")
+                .setAttribute("aria-label", "编辑解压记录");
+            this.button(row, "", () => {
+                void this.repository.deleteReliefEntry(entry.id).then(() => this.render(true), () => new Notice("删除解压记录失败"));
+            }, "trash-2").setAttribute("aria-label", "删除解压记录");
+        });
     }
     /** 展示按月筛选的记录表格及右侧单日详情 */
     private daily(body: HTMLElement): void {
@@ -432,16 +520,15 @@ export class PrototypeBoard {
         list.createEl("p", { text: "考勤与解压，按天一起查看" });
         // 月份状态和搜索操作区
         const tools = list.createDiv({ cls: "pv-controls pv-daily-tools" });
-        this.button(tools, "‹", () => { this.month = shiftIsoDate(`${this.month}-01`, -1).slice(0, 7); this.render(); });
-        // 每日记录月份输入控件
-        const month = tools.createEl("input", { type: "month" });
-        month.value = this.month;
-        month.setAttribute("aria-label", "记录月份");
-        month.onchange = () => { if (month.value) {
-            this.month = month.value;
-            this.render();
-        } };
-        this.button(tools, "›", () => { this.month = shiftIsoDate(`${this.month}-01`, 32).slice(0, 7); this.render(); });
+        // 月份选择与快捷翻月保持在一组，窄栏换行时一起移动
+        const monthFilter = tools.createDiv({ cls: "pv-month-filter" });
+        this.button(monthFilter, "‹", () => { this.month = shiftIsoDate(`${this.month}-01`, -1).slice(0, 7); this.render(); }).setAttribute("aria-label", "上个月");
+        renderMonthPicker(monthFilter, this.month, (value) => {
+            this.month = value;
+            this.render(true);
+            this.root.querySelector<HTMLButtonElement>(".pv-month-filter .pv-date-trigger")?.focus();
+        });
+        this.button(monthFilter, "›", () => { this.month = shiftIsoDate(`${this.month}-01`, 32).slice(0, 7); this.render(); }).setAttribute("aria-label", "下个月");
         ["全部", "待处理", "人工修正"].forEach((filter) => this.button(tools, filter, () => { this.filter = filter; this.render(); }, undefined, this.filter === filter ? "is-active" : ""));
         // 日期和解压事项搜索输入
         const search = tools.createEl("input", { type: "search", placeholder: "搜索日期、内容…" });
@@ -454,8 +541,6 @@ export class PrototypeBoard {
         const settings = this.repository.getSettings().reliefActivities;
         // 用于账本结算的本地日期
         const today = formatLocalIsoDate(new Date());
-        // 已配置的解压活动定义
-        const definitions = createReliefActivityDefinitions(settings);
         // 已停用事项的历史名称继续使用保存配置
         const historyDefinitions = createReliefActivityDefinitions(settings, true);
         // 列表与详情共用筛选结果，仅展示存在上班或下班打卡的日期
@@ -468,8 +553,10 @@ export class PrototypeBoard {
         }).reverse();
         if (!dates.includes(this.selected))
             this.selected = dates[0] ?? "";
+        // 仅表格横向滚动，月份浮层可以越过卡片边界完整展示
+        const tableScroll = list.createDiv({ cls: "pv-daily-table-scroll" });
         // 按日期组织的考勤解压表格
-        const table = list.createEl("table", { cls: "pv-table" });
+        const table = tableScroll.createEl("table", { cls: "pv-table" });
         // 记录表格的列标题
         const header = table.createEl("thead").createEl("tr");
         ["日期", "考勤", "解压", "最终压力", "状态"].forEach((label) => header.createEl("th", { text: label }));
@@ -492,7 +579,9 @@ export class PrototypeBoard {
                 this.selected = date;
                 this.render();
             } };
-            row.createEl("td", { text: `${Number(date.slice(5, 7))}月${Number(date.slice(8))}日` });
+            // 日期下方的星期保持与单日详情一致
+            const day = row.createEl("td", { text: `${Number(date.slice(5, 7))}月${Number(date.slice(8))}日` });
+            day.createEl("small", { cls: "otv-daily-weekday", text: formatWeekday(date) });
             // 单日上班下班摘要单元
             const attendance = row.createEl("td");
             attendance.createEl("strong", { text: `${record?.startMinute == null ? "—" : formatClockMinute(record.startMinute)} – ${record?.endMinute == null ? "—" : formatClockMinute(record.endMinute)}` });
@@ -517,7 +606,7 @@ export class PrototypeBoard {
         const ledger = calculateDailyPressureLedger(this.selected, record ?? undefined, dayEntries, today, settings);
         // 当前页面标题和操作区域
         const heading = detail.createDiv({ cls: "pv-heading" });
-        heading.createEl("h2", { text: `${this.selected} · 周${"一二三四五六日"[(new Date(`${this.selected}T00:00:00Z`).getUTCDay() + 6) % 7]}` });
+        heading.createEl("h2", { text: `${this.selected} · ${formatWeekday(this.selected)}` });
         // 上一日与下一日操作区域
         const arrows = heading.createDiv();
         [-1, 1].forEach((offset) => {
@@ -552,12 +641,7 @@ export class PrototypeBoard {
             const modal = new Modal(this.app); modal.setTitle("导入快照"); modal.contentEl.createEl("pre", { text: JSON.stringify(record.source, null, 2) }); modal.open(); }, "file-text");
         // 单日解压记录展示区
         const relief = this.panel(detail, "解压记录");
-        // 事项快捷入口随数量与详情宽度自适应排列
-        const shortcuts = relief.createDiv({ cls: "pv-relief-shortcuts" });
-        definitions.forEach((definition) => this.button(shortcuts, `+ ${definition.label}`, () => { void this.repository.addReliefEntry(this.selected, definition.type, definition.incrementMinutes).then(() => this.render()); }, undefined, "pv-relief-add"));
-        dayEntries.forEach((entry) => {
-        // 当前数据展示行
-        const row = relief.createDiv({ cls: "pv-relief-row" }); row.createSpan({ text: `${historyDefinitions.find((item) => item.type === entry.type)?.label ?? entry.type} · ${entry.durationMinutes} 分钟` }); row.createEl("strong", { cls: "pv-pink", text: `${calculateReliefScore([entry], settings)} 分` }); this.button(row, "", () => new ReliefEditModal(this.app, this.repository, entry, () => this.render()).open(), "pencil"); this.button(row, "", () => { void this.repository.deleteReliefEntry(entry.id).then(() => this.render()); }, "trash-2"); });
+        this.reliefRecords(relief, this.selected, dayEntries, settings);
         relief.createEl("p", { text: `记录解压 ${ledger.reliefScore} 分，本日实际抵扣 ${ledger.appliedReliefScore} 分` });
         if (record?.warnings.length)
             detail.createEl("p", { cls: "pv-orange", text: `待确认：${record.warnings.join("；")}` });

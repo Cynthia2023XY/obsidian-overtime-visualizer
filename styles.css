@@ -1504,6 +1504,24 @@
 .pv-app .pv-date-footer button { padding: 5px 12px; color: #9bcaff; font-size: 12px; }
 .pv-date-picker button:focus-visible { outline: 2px solid #9bcaff; outline-offset: 2px; }
 @media (max-width: 600px) { .pv-date-popover { right: auto; left: 0; } .pv-date-picker:last-child .pv-date-popover { left: auto; right: 0; } }
+
+/* 每日记录的月份浮层与快捷翻月共享一个不拆分的筛选组。 */
+.pv-month-filter { position: relative; display: flex; gap: 6px; align-items: stretch; }
+.pv-month-filter .pv-date-picker { position: static; }
+.pv-app .pv-month-filter .pv-date-trigger { min-width: 0; white-space: nowrap; }
+.pv-app .pv-month-filter > button { width: 34px; padding: 0; }
+.pv-month-filter .pv-date-popover {
+  left: 0;
+  right: auto;
+  box-sizing: border-box;
+  width: min(248px, calc(100vw - 56px));
+}
+.pv-month-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.pv-month-footer { justify-content: flex-end; }
+
+/* 表格单独横向滚动，让筛选浮层可以伸出记录卡片。 */
+.pv-daily-grid > .pv-panel:first-child { overflow: visible; }
+.pv-daily-table-scroll { overflow-x: auto; }
 /* 声明式设置项承载完整表单时恢复纵向布局 */
 .setting-item.otv-sync-settings-host { display: block; padding: 0; border: 0; min-width: 0; }
 .otv-sync-settings { width: 100%; min-width: 0; }
@@ -1514,4 +1532,208 @@
 @media (max-width: 560px) {
   .otv-sync-settings .setting-item { flex-wrap: wrap; }
   .otv-sync-settings .setting-item-info { min-width: 0; }
+}
+
+.otv-relief-calendar {
+  container-type: inline-size;
+}
+
+.otv-relief-calendar__layout {
+  display: grid;
+  gap: 16px;
+}
+
+.otv-relief-calendar__month {
+  width: 100%;
+  max-width: 368px;
+  min-width: 0;
+}
+
+.otv-relief-calendar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.otv-relief-calendar__navigation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pv-app .otv-relief-calendar__navigation strong {
+  color: #e8effa;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.pv-app .otv-relief-calendar__controls button {
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  background: #283646;
+  font-size: 12px;
+}
+
+.pv-app .otv-relief-calendar__navigation button {
+  width: 32px;
+  padding: 0;
+  font-size: 18px;
+}
+
+.pv-app button.otv-relief-calendar__today {
+  color: #a2c7fc;
+  background: transparent;
+  white-space: nowrap;
+}
+
+.pv-app .otv-relief-calendar .pv-calendar-grid button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 0 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #283646;
+  font-variant-numeric: tabular-nums;
+}
+
+.otv-relief-calendar .pv-weekday {
+  white-space: nowrap;
+}
+
+.pv-app .otv-relief-calendar .pv-calendar-grid button.is-future {
+  background: #24303c;
+  color: #a0afc0;
+}
+
+.pv-app .otv-relief-calendar .pv-calendar-grid button:hover,
+.pv-app .otv-relief-calendar__controls button:hover {
+  background: #33495e;
+}
+
+.pv-app .otv-relief-calendar .pv-calendar-grid button.is-active {
+  color: #e8f3ff;
+  border-color: #4b9eff;
+  background: #2b507b;
+}
+
+.otv-relief-calendar button:focus-visible {
+  outline: 2px solid #a2c7fc;
+  outline-offset: 1px;
+}
+
+.otv-relief-calendar .pv-calendar-grid button.has-relief::after,
+.otv-relief-calendar__legend::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #68eca6;
+}
+
+.otv-relief-calendar .pv-calendar-grid button.has-relief::after {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.pv-app .otv-relief-calendar__legend {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.otv-relief-calendar__detail {
+  min-width: 0;
+  padding: 14px;
+  background: #1b2632;
+  border-radius: 10px;
+}
+
+.otv-relief-calendar__detail-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.pv-app .otv-relief-calendar__detail-heading h3 {
+  margin: 0;
+}
+
+.otv-relief-calendar__attendance {
+  color: #b4c4d8;
+  background: #2b3948;
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.pv-app .otv-relief-calendar__detail p {
+  margin: 4px 0 10px;
+  font-size: 13px;
+}
+
+.pv-app .otv-relief-calendar__score strong {
+  color: #68eca6;
+  font-size: 18px;
+}
+
+.otv-relief-calendar__detail .pv-relief-shortcuts {
+  margin-bottom: 0;
+}
+
+.otv-relief-calendar__detail .pv-relief-row {
+  padding: 8px;
+  gap: 6px;
+}
+
+.otv-relief-calendar__detail .pv-relief-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.otv-relief-calendar__detail .pv-relief-row strong {
+  white-space: nowrap;
+}
+
+.otv-relief-calendar__detail .pv-relief-row .pv-icon {
+  margin-right: 0;
+}
+
+@container (min-width: 640px) {
+  .otv-relief-calendar__layout {
+    grid-template-columns: minmax(0, 368px) minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+  }
+}
+
+.pv-table .otv-daily-weekday {
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.pv-app .otv-pressure-band {
+  grid-template-columns: minmax(max-content, 165px) minmax(0, 1fr) max-content;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.otv-pressure-band > span {
+  white-space: nowrap;
+}
+
+.otv-pressure-band small {
+  margin-inline-start: 7px;
 }

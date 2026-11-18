@@ -10,6 +10,10 @@ copyFileSync(require.resolve("@overtime-visualizer/ui/styles.css"), "styles.css"
 appendFileSync("styles.css", readFileSync(new URL("./src/ui/date-picker.css", import.meta.url)));
 // 保留插件自身的同步设置样式，避免共享样式复制时覆盖
 appendFileSync("styles.css", readFileSync(new URL("./src/ui/attendance-sync-settings.css", import.meta.url)));
+// 在共享样式之后加载解压日历与每日记录日期样式
+appendFileSync("styles.css", readFileSync(new URL("./src/ui/relief-calendar.css", import.meta.url)));
+// 在共享样式之后加载压力构成的紧凑行布局
+appendFileSync("styles.css", readFileSync(new URL("./src/ui/pressure-composition.css", import.meta.url)));
 
 /** 构建产物顶部的自动生成声明 */
 const banner = `/*

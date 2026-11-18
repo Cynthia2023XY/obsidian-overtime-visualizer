@@ -23,3 +23,21 @@
 .pv-app .pv-date-footer button { padding: 5px 12px; color: #9bcaff; font-size: 12px; }
 .pv-date-picker button:focus-visible { outline: 2px solid #9bcaff; outline-offset: 2px; }
 @media (max-width: 600px) { .pv-date-popover { right: auto; left: 0; } .pv-date-picker:last-child .pv-date-popover { left: auto; right: 0; } }
+
+/* 每日记录的月份浮层与快捷翻月共享一个不拆分的筛选组。 */
+.pv-month-filter { position: relative; display: flex; gap: 6px; align-items: stretch; }
+.pv-month-filter .pv-date-picker { position: static; }
+.pv-app .pv-month-filter .pv-date-trigger { min-width: 0; white-space: nowrap; }
+.pv-app .pv-month-filter > button { width: 34px; padding: 0; }
+.pv-month-filter .pv-date-popover {
+  left: 0;
+  right: auto;
+  box-sizing: border-box;
+  width: min(248px, calc(100vw - 56px));
+}
+.pv-month-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.pv-month-footer { justify-content: flex-end; }
+
+/* 表格单独横向滚动，让筛选浮层可以伸出记录卡片。 */
+.pv-daily-grid > .pv-panel:first-child { overflow: visible; }
+.pv-daily-table-scroll { overflow-x: auto; }
