@@ -1,0 +1,45 @@
+src/ui/prototype-board-test.ts
+  s_4b5f2ff4c44780::t_863672580ac0c6 29,111,113,123,135-153
+  s_4b5f2ff4c44780::t_35510668c58803 127-134,154
+  s_4b5f2ff4c44780::t_3ff4722146db9d 155
+src/ui/prototype-board.ts
+  s_4b5f2ff4c44780::t_863672580ac0c6 96-108,554-561,565,661
+  s_4b5f2ff4c44780::t_90a60bc0d7a31b 357
+  s_4b5f2ff4c44780::t_35510668c58803 282-287
+  s_4b5f2ff4c44780::t_45a811b521ee7a 660
+package.json
+  s_4b5f2ff4c44780::t_de0c100c60d6f7 24-25
+  s_4b5f2ff4c44780::t_e82e925a344ecb 3
+styles.css
+  s_4b5f2ff4c44780::t_1e0a4fedde0633 1740-1769
+src/ui/data-management-modals.ts
+  s_4b5f2ff4c44780::t_f323d04ba0032e 2,49-51,74,85
+src/ui/pressure-composition.css
+  s_4b5f2ff4c44780::t_90a60bc0d7a31b 15-44
+README.md
+  s_4b5f2ff4c44780::t_b072944f6f15b7 143
+manifest.json
+  s_4b5f2ff4c44780::t_b784bce3f10542 4
+package-lock.json
+  s_4b5f2ff4c44780::t_5ae59d5c995b43 3,9,12-13,1079-1081,1085-1087,1093
+vendor/README.md
+  s_4b5f2ff4c44780::t_60420663ddfc93 3-4
+versions.json
+  s_4b5f2ff4c44780::t_5994bb1aebfffe 11-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "afa6fa7daf61ebea52583e05350d6179be18adfb",
+  "prompts": {},
+  "sessions": {
+    "s_4b5f2ff4c44780": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1f294-aacc-7b02-97bf-f47862279254",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "dingxinyi.2 <dingxinyi.2@jd.com>"
+    }
+  }
+}
