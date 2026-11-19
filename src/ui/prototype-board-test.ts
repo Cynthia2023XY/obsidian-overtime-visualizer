@@ -26,7 +26,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals(
 
 /** 构造包含真实打卡、空考勤及休息日出勤的记录 */
 function attendance(date: string, startMinute: number | null, endMinute: number | null, dayType: AttendanceRecord["dayType"] = "workday"): AttendanceRecord {
-    return { ...ATTENDANCE_RECORD_MOCKS[0]!, date, startMinute, endMinute, dayType, attendanceState: startMinute !== null && endMinute !== null ? "complete" : "incomplete", warnings: [], leaveReasons: [], overnightState: "none" };
+    return { ...ATTENDANCE_RECORD_MOCKS[0]!, date, startMinute, endMinute, dayType, attendanceState: startMinute !== null && endMinute !== null ? "complete" : dayType !== "workday" && startMinute === null && endMinute === null ? "non-working-day" : "incomplete", warnings: [], leaveReasons: [], overnightState: "none" };
 }
 
 /** 用内存仓储渲染并操作真实看板，不接触用户笔记 */
@@ -108,9 +108,9 @@ describe("仅展示实际打卡日期", () => {
         ])).toEqual(["2026-10-16", "2026-10-17", "2026-10-19"]);
     });
 
-    it("列表与详情跳过无打卡和只有解压的日期，待处理单次打卡仍可见", () => {
+    it("全部列表只显示打卡日，待处理包含单次打卡和整日缺卡", () => {
         // 当前月包含两次实际出勤和两天没有打卡的考勤行
-        const { root } = renderBoard([attendance("2026-10-19", 540, null), attendance("2026-10-18", null, null, "rest-day"), attendance("2026-10-17", null, null), attendance("2026-10-16", 540, 1200)]);
+        const { root } = renderBoard([attendance("2026-10-19", 540, null), attendance("2026-10-18", null, null, "rest-day"), { ...attendance("2026-10-17", null, null), attendanceState: "missing-punch" }, attendance("2026-10-16", 540, 1200)]);
         expect(root.querySelectorAll("tbody tr")).toHaveLength(2);
         expect(Array.from(root.querySelectorAll(".otv-daily-weekday"), (day) => day.textContent)).toEqual(["周一", "周五"]);
         expect(root.querySelector("h2")?.textContent).toContain("2026-10-19");
@@ -120,8 +120,37 @@ describe("仅展示实际打卡日期", () => {
         expect(root.querySelector("h2")?.textContent).toContain("2026-10-16");
         expect(root.querySelector<HTMLButtonElement>(".pv-daily-grid > .pv-panel:nth-child(2) .pv-heading button")?.disabled).toBe(true);
         Array.from(root.querySelectorAll("button")).find((button) => button.textContent === "待处理")!.click();
-        expect(root.querySelectorAll("tbody tr")).toHaveLength(1);
+        expect(root.querySelectorAll("tbody tr")).toHaveLength(2);
         expect(root.querySelector("h2")?.textContent).toContain("2026-10-19");
+    });
+
+    it("没有待确认记录时隐藏概览处理卡片", () => {
+        // 包含正常出勤，确保卡片判断依据是待确认数量
+        const { root, board } = renderBoard([attendance("2026-10-19", 540, 1200)], "概览");
+        expect(root.textContent).not.toContain("需要处理");
+        expect(root.textContent).not.toContain("0 条待确认");
+        board.destroy();
+    });
+
+    it("从概览直达历史整日缺卡详情并清除旧搜索", () => {
+        // 跨月异常与目标月正常考勤共存，用于核对跳转后筛选范围
+        const { root } = renderBoard([
+            { ...attendance("2026-02-25", null, null), attendanceState: "missing-punch" },
+            attendance("2026-02-26", 540, 1200),
+            attendance("2026-01-07", 540, null),
+        ]);
+        // 设置一个会排除目标日期的旧搜索条件
+        const search = root.querySelector<HTMLInputElement>('input[type="search"]')!;
+        search.value = "2026-10-19";
+        search.dispatchEvent(new Event("change"));
+        root.querySelector<HTMLButtonElement>(".pv-nav button")!.click();
+        expect(root.textContent).toContain("2 条待确认");
+        root.querySelector<HTMLButtonElement>(".pv-pending")!.click();
+        expect(root.querySelector(".pv-month-filter .pv-date-trigger")?.textContent).toBe("2026 年 2 月");
+        expect(root.querySelector(".pv-daily-tools button.is-active")?.textContent).toBe("待处理");
+        expect(root.querySelectorAll("tbody tr")).toHaveLength(1);
+        expect(root.querySelector("h2")?.textContent).toContain("2026-02-25");
+        expect(root.textContent).toContain("待确认：缺少打卡时间");
     });
 
     it("从无考勤日期进入每日页时回退到实际出勤，搜索无结果后清空详情", () => {

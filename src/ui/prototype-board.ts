@@ -93,11 +93,19 @@ export class PrototypeBoard {
         if (note)
             copy.createEl("small", { text: note });
     }
-    /** 切换导航并同步当前页面 */
-    private navigate(page: string, date?: string): void { this.page = page; if (date) {
-        this.selected = date;
-        this.month = date.slice(0, 7);
-    } this.render(); }
+    /** 切换页面并定位指定日期，待处理入口同时清除旧搜索条件 */
+    private navigate(page: string, date?: string, showPending = false): void {
+        this.page = page;
+        if (date) {
+            this.selected = date;
+            this.month = date.slice(0, 7);
+        }
+        if (showPending) {
+            this.filter = "待处理";
+            this.search = "";
+        }
+        this.render();
+    }
     /** 渲染统一导航及当前页面，原地更新数据时保留滚动位置 */
     render(preserveScroll = false): void {
         // 同时兼容看板自身及 Obsidian 外层容器承载滚动的布局
@@ -269,14 +277,14 @@ export class PrototypeBoard {
             calendar.addClass("otv-relief-calendar");
             this.reliefCalendar(calendar.createDiv({ cls: "otv-relief-calendar__layout" }), today);
             this.button(side, "查看今日记录 →", () => this.navigate("每日记录", today));
-            // 需要人工核对的记录区域
-            const pending = this.panel(side, "需要处理");
             // 含缺失打卡或跨夜警告的考勤
             const unresolved = this.repository.list().filter((record) => this.pending(record.date));
-            pending.createEl("p", { text: `${unresolved.length} 条待确认` });
-            unresolved.sort((left, right) => right.date.localeCompare(left.date)).slice(0, 3).forEach((record) => this.button(pending, `${record.date} ${record.warnings[0] ?? "缺少打卡时间"} ›`, () => this.navigate("每日记录", record.date), "circle-alert", "pv-pending"));
-            if (!unresolved.length)
-                pending.createEl("p", { text: "当前没有待确认记录" });
+            if (unresolved.length > 0) {
+                // 有需要人工核对的记录时才展示处理卡片
+                const pending = this.panel(side, "需要处理");
+                pending.createEl("p", { text: `${unresolved.length} 条待确认` });
+                unresolved.sort((left, right) => right.date.localeCompare(left.date)).slice(0, 3).forEach((record) => this.button(pending, `${record.date} ${record.warnings[0] ?? "缺少打卡时间"} ›`, () => this.navigate("每日记录", record.date, true), "circle-alert", "pv-pending"));
+            }
             // 概览可切换图表区域
             const lower = this.panel(main);
             // 图表类型选择区域
@@ -346,7 +354,7 @@ export class PrototypeBoard {
             const panel = this.panel(parent, monthly ? "月平均压力指数" : "周平均压力指数");
             panel.createEl("p", { text: `全部考勤数据 · 已结算考勤日均（含周末及零压力日） · ${monthly ? "按自然月统计" : "自然周为周一至周日"} · 虚线仅连接无数据区间` });
             // 使用原生复选框提供可键盘操作的最终压力开关
-            const label = panel.createEl("label", { cls: "pv-controls" });
+            const label = panel.createEl("label", { cls: "pv-controls otv-pressure-toggle" });
             // 两个面板分别保留本次看板会话内的勾选状态
             const toggle = label.createEl("input", { type: "checkbox" });
             toggle.checked = this.showFinalPressure[unit];
@@ -543,12 +551,18 @@ export class PrototypeBoard {
         const today = formatLocalIsoDate(new Date());
         // 已停用事项的历史名称继续使用保存配置
         const historyDefinitions = createReliefActivityDefinitions(settings, true);
-        // 列表与详情共用筛选结果，仅展示存在上班或下班打卡的日期
-        const dates = getAttendanceDates(this.repository.list()).filter((date) => {
+        // 读取每日列表候选考勤
+        const records = this.repository.list();
+        // 待处理包含没有打卡的异常考勤，其他筛选继续使用实际打卡日期
+        const candidateDates = this.filter === "待处理"
+            ? records.filter((record) => this.pending(record.date)).map((record) => record.date).sort()
+            : getAttendanceDates(records);
+        // 列表与详情共用月份、状态及搜索结果
+        const dates = candidateDates.filter((date) => {
             // 当前日期的历史解压名称参与搜索
             const reliefNames = [...new Set(entries.filter((entry) => entry.date === date).map((entry) => historyDefinitions.find((item) => item.type === entry.type)?.label ?? entry.type))].join(" · ");
             return date.startsWith(this.month)
-                && (this.filter === "全部" || (this.filter === "待处理" ? this.pending(date) : this.repository.get(date)?.manuallyEdited))
+                && (this.filter !== "人工修正" || this.repository.get(date)?.manuallyEdited)
                 && (!this.search || `${date} ${reliefNames} ${this.repository.get(date)?.leaveReasons.join(" ")}`.includes(this.search));
         }).reverse();
         if (!dates.includes(this.selected))
@@ -643,8 +657,8 @@ export class PrototypeBoard {
         const relief = this.panel(detail, "解压记录");
         this.reliefRecords(relief, this.selected, dayEntries, settings);
         relief.createEl("p", { text: `记录解压 ${ledger.reliefScore} 分，本日实际抵扣 ${ledger.appliedReliefScore} 分` });
-        if (record?.warnings.length)
-            detail.createEl("p", { cls: "pv-orange", text: `待确认：${record.warnings.join("；")}` });
+        if (record && (record.warnings.length || record.attendanceState === "missing-punch" || record.attendanceState === "incomplete"))
+            detail.createEl("p", { cls: "pv-orange", text: `待确认：${record.warnings.join("；") || "缺少打卡时间"}` });
     }
     /** 绘制可在弹窗预览的年度分享卡 */
     private shareCard(parent: HTMLElement): HTMLElement {

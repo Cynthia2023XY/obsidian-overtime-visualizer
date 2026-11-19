@@ -140,7 +140,7 @@ styles.css
 
 桌面版已迁出插件目录，独立项目位于本机 `/Users/dingxinyi.2/Documents/practice/overtime-visualizer/`。Electron 构建与安装包在独立项目维护，插件不再依赖桌面开发工具。
 
-统计、导入与数据迁移由 `@overtime-visualizer/core@0.1.0` 提供，通用图表和组件由 `@overtime-visualizer/ui@0.1.1` 提供。两份固定版本 tarball 随仓库保存在 `vendor/`，因此克隆本插件仓库后可独立执行 `npm ci`、测试和构建，无需旁边存在独立应用仓库。`src` 中相应目录仅保留包导出适配层；插件构建时会复制共享样式到 `styles.css`。
+统计、导入与数据迁移由 `@overtime-visualizer/core@0.1.1` 提供，通用图表和组件由 `@overtime-visualizer/ui@0.1.2` 提供。两份固定版本 tarball 随仓库保存在 `vendor/`，因此克隆本插件仓库后可独立执行 `npm ci`、测试和构建，无需旁边存在独立应用仓库。`src` 中相应目录仅保留包导出适配层；插件构建时会复制共享样式到 `styles.css`。
 
 更新流程见 [共享包说明](vendor/README.md)。
 

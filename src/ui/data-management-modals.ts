@@ -1,4 +1,5 @@
 import { App, Modal, Notice, Setting } from "obsidian";
+import { classifyAttendanceState } from "../import/normalize-record";
 import { DEFAULT_SETTINGS } from "../settings";
 import { createReliefActivityDefinitions } from "../analytics/pressure-ledger";
 import type { PluginDataRepository } from "../repository/plugin-data-repository";
@@ -45,7 +46,9 @@ export class AttendanceEditModal extends Modal {
       /** 校验后的下班分钟数 */
       const endMinute = parseClock(endValue);
       if (startMinute === null || endMinute === null) { new Notice("请输入有效的时间"); return; }
-      await this.repository.upsert({ ...this.record, startMinute, endMinute, manuallyEdited: true, source: { ...this.record.source, attendanceStartTime: startValue, attendanceEndTime: endValue } });
+      // 补齐两个时间后重新判定考勤，原有整天休假记录恢复为实际出勤
+      const attendanceState = classifyAttendanceState(this.record.dayType, startMinute, endMinute, this.record.leaveReasons);
+      await this.repository.upsert({ ...this.record, startMinute, endMinute, attendanceState, manuallyEdited: true, source: { ...this.record.source, attendanceStartTime: startValue, attendanceEndTime: endValue } });
       this.onSaved();
       this.close();
     }));
@@ -68,7 +71,7 @@ export class DailyAttendanceModal extends Modal {
     let endValue = formatClock(existing?.endMinute ?? null);
     // 人工确认的工作日类别
     let dayType = existing?.dayType ?? "workday";
-    new Setting(this.contentEl).setName("上班时间").setDesc("例如 09:00；未打卡时留空").addText((text) => text.setValue(startValue).onChange((value) => { startValue = value; }));
+    new Setting(this.contentEl).setName("上班时间").setDesc("例如 09:00。工作日两项都留空时记为整天休假").addText((text) => text.setValue(startValue).onChange((value) => { startValue = value; }));
     new Setting(this.contentEl).setName("下班时间").setDesc("可留空；跨夜时间可填 24:30 表示次日 00:30").addText((text) => text.setValue(endValue).onChange((value) => { endValue = value; }));
     new Setting(this.contentEl).setName("日类型").addDropdown((dropdown) => dropdown.addOption("workday", "工作日").addOption("rest-day", "休息日").addOption("holiday", "节假日").addOption("unknown", "待确认").setValue(dayType).onChange((value) => { dayType = value as typeof dayType; }));
     new Setting(this.contentEl).addButton((button) => button.setButtonText("取消").onClick(() => this.close())).addButton((button) => button.setCta().setButtonText("保存").onClick(async () => {
@@ -79,7 +82,7 @@ export class DailyAttendanceModal extends Modal {
       if ((startValue.trim() && startMinute === null) || (endValue.trim() && endMinute === null)) { new Notice("请输入有效的时间"); return; }
       if (startMinute !== null && endMinute !== null && endMinute <= startMinute) { new Notice("下班时间应晚于上班时间；跨夜请使用次日 00:xx 的 24:xx 表达"); return; }
       // 由日期、打卡和假别事实推导本次记录状态
-      const attendanceState = startMinute !== null && endMinute !== null ? (existing?.leaveReasons.length ? "partial-leave" : "complete") : (startMinute !== null || endMinute !== null) ? "incomplete" : dayType === "workday" ? "missing-punch" : existing?.leaveReasons.length ? "full-leave" : "non-working-day";
+      const attendanceState = classifyAttendanceState(dayType, startMinute, endMinute, existing?.leaveReasons ?? []);
       // 当前日期的 ISO 星期编号
       const weekday = new Date(`${this.date}T00:00:00Z`).getUTCDay() || 7;
       // 下班分钟超过当日范围时标记为人工确认跨夜

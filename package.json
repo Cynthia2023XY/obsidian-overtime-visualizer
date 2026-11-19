@@ -1,6 +1,6 @@
 {
   "name": "obsidian-overtime-visualizer",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Visualize attendance, working duration, late departures, leave, and overnight work in Obsidian.",
   "main": "main.js",
   "type": "module",
@@ -21,8 +21,8 @@
   "author": "Cynthia Ding",
   "license": "MIT",
   "dependencies": {
-    "@overtime-visualizer/core": "file:vendor/overtime-visualizer-core-0.1.0.tgz",
-    "@overtime-visualizer/ui": "file:vendor/overtime-visualizer-ui-0.1.1.tgz",
+    "@overtime-visualizer/core": "file:vendor/overtime-visualizer-core-0.1.1.tgz",
+    "@overtime-visualizer/ui": "file:vendor/overtime-visualizer-ui-0.1.2.tgz",
     "echarts": "6.1.0",
     "html-to-image": "1.11.13"
   },
