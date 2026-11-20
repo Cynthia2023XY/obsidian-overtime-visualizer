@@ -15,8 +15,10 @@ import {
 } from "./constants";
 import { AttendanceDashboardView } from "./views/attendance-dashboard-view";
 import { SerializedPluginDataRepository } from "./repository/serialized-plugin-data-repository";
+import { CompTimeStore } from "./repository/comp-time-store";
 import { AttendanceDataView } from "./views/attendance-data-view";
 import type { ReliefVisualizerData } from "./types/storage";
+import type { CompTimeData } from "./types/comp-time";
 import { OvertimeVisualizerSettingTab } from "./ui/plugin-settings-tab";
 import { createCombinedBackup } from "./backup/combined-backup";
 import { exportJson } from "./export/json-export";
@@ -37,6 +39,9 @@ export interface AttendanceSyncSettings {
 export default class OvertimeVisualizerPlugin extends Plugin {
   /** 已通过版本校验的本地考勤仓储 */
   repository: SerializedPluginDataRepository;
+
+  /** 本地调休统计仓储 */
+  compTimeStore: CompTimeStore;
 
   /** 当前笔记库的自动同步开关与来源路径 */
   syncSettings: AttendanceSyncSettings = { enabled: false, path: DEFAULT_ATTENDANCE_SYNC_PATH };
@@ -64,6 +69,17 @@ export default class OvertimeVisualizerPlugin extends Plugin {
         await this.app.vault.adapter.write(this.getReliefDataPath(), JSON.stringify(data, null, 2));
       },
     });
+    this.compTimeStore = new CompTimeStore({
+      loadCompTimeData: async () => {
+        /** 调休统计独立文件在笔记库中的相对路径 */
+        const path = this.getCompTimeDataPath();
+        if (!await this.app.vault.adapter.exists(path)) return null;
+        return JSON.parse(await this.app.vault.adapter.read(path)) as unknown;
+      },
+      saveCompTimeData: async (data: CompTimeData) => {
+        await this.app.vault.adapter.write(this.getCompTimeDataPath(), JSON.stringify(data, null, 2));
+      },
+    });
   }
 
   /** 返回插件目录中独立解压数据文件的路径 */
@@ -71,6 +87,13 @@ export default class OvertimeVisualizerPlugin extends Plugin {
     /** 当前插件的笔记库内安装目录 */
     const pluginDirectory = this.manifest.dir ?? `.obsidian/plugins/${this.manifest.id}`;
     return normalizePath(`${pluginDirectory}/relief-data.json`);
+  }
+
+  /** 返回插件目录中独立调休统计数据文件的路径 */
+  private getCompTimeDataPath(): string {
+    /** 当前插件的笔记库内安装目录 */
+    const pluginDirectory = this.manifest.dir ?? `.obsidian/plugins/${this.manifest.id}`;
+    return normalizePath(`${pluginDirectory}/comp-time-data.json`);
   }
 
   /** 返回与考勤数据分离的同步配置文件位置 */
@@ -157,6 +180,7 @@ export default class OvertimeVisualizerPlugin extends Plugin {
   /** 插件启用时注册仪表盘视图、命令和侧边栏入口 */
   async onload(): Promise<void> {
     await this.repository.initialize();
+    await this.compTimeStore.initialize();
     await this.loadSyncSettings();
     this.addSettingTab(new OvertimeVisualizerSettingTab(this));
     if (this.syncSettings.enabled) void this.syncAttendanceFile(false);
@@ -164,11 +188,11 @@ export default class OvertimeVisualizerPlugin extends Plugin {
 
     this.registerView(
       OVERTIME_DASHBOARD_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new AttendanceDashboardView(leaf, this.repository),
+      (leaf: WorkspaceLeaf) => new AttendanceDashboardView(leaf, this.repository, this.compTimeStore),
     );
     this.registerView(
       ATTENDANCE_DATA_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new AttendanceDataView(leaf, this.repository),
+      (leaf: WorkspaceLeaf) => new AttendanceDataView(leaf, this.repository, this.compTimeStore),
     );
 
     this.addRibbonIcon(

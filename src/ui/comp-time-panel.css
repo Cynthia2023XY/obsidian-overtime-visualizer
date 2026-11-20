@@ -1,0 +1,72 @@
+.pv-app .otv-comp-hidden-input {
+  display: none;
+}
+
+.pv-app .otv-comp-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pv-app .otv-comp-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pv-app .otv-comp-title-row h1 {
+  margin: 0 0 4px 0;
+}
+
+.pv-app .otv-comp-title-row p {
+  margin: 0;
+  color: var(--pv-muted, #9fb0c3);
+  font-size: 13px;
+}
+
+.pv-app .otv-comp-action-group,
+.pv-app .otv-comp-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pv-app .otv-comp-filter-row {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--pv-card, #1d2631);
+  border: 1px solid var(--pv-border, #2b3847);
+}
+
+.pv-app .otv-comp-filter-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--pv-border, #2b3847);
+  margin: 0 4px;
+}
+
+.pv-app .otv-comp-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.pv-app .otv-comp-rules-list {
+  padding-left: 18px;
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.pv-app .otv-comp-rules-list li {
+  margin-bottom: 8px;
+}
+
+.pv-app .otv-comp-badge-muted {
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+}

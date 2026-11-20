@@ -20,6 +20,8 @@ import { calculateDepartureTrend, getDepartureBridges } from "../analytics/depar
 import { getAttendanceDates } from "./attendance-dates";
 import { calculatePressureTrend } from "../analytics/pressure-trend";
 import { formatWeekday, renderMonthDays } from "./month-calendar";
+import { CompTimeStore } from "../repository/comp-time-store";
+import { CompTimePanel } from "./comp-time-panel";
 use([LineChart, GridComponent, LegendComponent, TooltipComponent, SVGRenderer]);
 /** 按原型组织三页导航、真实账本和本地编辑操作 */
 export class PrototypeBoard {
@@ -49,8 +51,16 @@ export class PrototypeBoard {
     private chartTab = "日历热力";
     /** 月均和周均压力图各自控制是否叠加最终压力曲线 */
     private showFinalPressure = { month: false, week: false };
+    /** 调休统计本地数据仓储 */
+    private compTimeStore: CompTimeStore;
+    /** 调休统计页面控制器 */
+    private compTimePanel: CompTimePanel;
     /** 注入 Obsidian 环境与本地仓储 */
-    constructor(private app: App, private repository: PluginDataRepository, private root: HTMLElement, page = "概览") { this.page = page; }
+    constructor(private app: App, private repository: PluginDataRepository, private root: HTMLElement, page = "概览", compTimeStore?: CompTimeStore) {
+        this.page = page;
+        this.compTimeStore = compTimeStore ?? new CompTimeStore();
+        this.compTimePanel = new CompTimePanel(this.app, this.repository, this.compTimeStore, () => this.render(true));
+    }
     /** 清理图表和尺寸监听 */
     destroy(): void { this.charts.forEach((chart) => chart.dispose()); this.charts = []; this.observer?.disconnect(); }
     /** 创建带图标的可操作按钮 */
@@ -131,7 +141,7 @@ export class PrototypeBoard {
         const icon = brand.createSpan();
         setIcon(icon, "sunset");
         brand.prepend(icon);
-        ["概览", "每日记录", "年度回顾"].forEach((page) => this.button(nav, page, () => this.navigate(page), undefined, this.page === page ? "is-active" : ""));
+        ["概览", "每日记录", "调休统计", "年度回顾"].forEach((page) => this.button(nav, page, () => this.navigate(page), undefined, this.page === page ? "is-active" : ""));
         nav.createSpan({ cls: "pv-local", text: "● 仅保存在本地" });
         this.button(nav, "导入考勤", () => new ImportPreviewModal(this.app, this.repository, () => this.render()).open(), "upload", "pv-primary");
         this.button(nav, "导出全部", () => { void exportJson(this.app, "考勤与解压备份", createCombinedBackup(this.repository)); }, "download");
@@ -142,6 +152,8 @@ export class PrototypeBoard {
         const body = this.root.createDiv({ cls: "pv-body" });
         if (this.page === "每日记录")
             this.daily(body);
+        else if (this.page === "调休统计")
+            this.compTimePanel.render(body);
         else
             this.overview(body, this.page === "年度回顾");
         // 内容重建完成后同步恢复位置，避免用户连续记录解压事项时页面跳动
