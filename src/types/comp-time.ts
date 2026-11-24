@@ -59,6 +59,8 @@ export interface CompTimeData {
   ignoredDates: string[];
   /** 当前周期自动带出记录的人工调整小时数映射 */
   draftHourOverrides: Record<string, number>;
+  /** 按加班日期保存的加班事项 */
+  overtimeNotes: Record<string, string>;
   /** 已提报的调休台账索引 */
   entries: Record<string, CompTimeLedgerEntry>;
 }
@@ -85,7 +87,7 @@ export interface CompTimePeriod {
 
 /** 单日加班时长计算明细 */
 export interface CompTimeCalculationResult {
-  /** 扣除午休和晚饭后的净加班分钟数 */
+  /** 扣除吃饭时间及工作日8小时正常工时后的净加班分钟数 */
   rawNetMinutes: number;
   /** 按0.5小时向下取整且未封顶的加班小时数 */
   uncappedHours: number;
@@ -164,6 +166,8 @@ export interface CompTimeReportRow {
   startMinute: number | null;
   /** 下班打卡分钟数 */
   endMinute: number | null;
+  /** 是否因跨夜占用最早打卡而默认09:00起算 */
+  assumedStart: boolean;
   /** 是否为跨夜加班 */
   isOvernight: boolean;
   /** 规则计算得到的时长（小时） */
@@ -172,6 +176,8 @@ export interface CompTimeReportRow {
   reportableHours: number;
   /** 是否使用了导入校准时长 */
   fromImport: boolean;
+  /** 当日加班事项 */
+  overtimeNote: string;
   /** 按3个月月底规则计算的参考有效期截止日 */
   referenceExpiresAt: string;
 }
@@ -196,5 +202,7 @@ export interface CompTimeExportPayload {
     hours: number;
     sourceType?: CompTimeSourceType;
     referenceExpiresAt?: string;
+    /** 可选加班事项，兼容未提供该字段的旧文件 */
+    overtimeNote?: string;
   }[];
 }

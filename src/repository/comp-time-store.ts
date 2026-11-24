@@ -112,6 +112,14 @@ export function sanitizeCompTimeData(raw: unknown): CompTimeData {
     });
   }
 
+  /** 加班事项仅保留有效日期和文本，旧数据缺少该字段时默认为空 */
+  const overtimeNotes: Record<string, string> = {};
+  if (isPlainObject(raw.overtimeNotes)) {
+    Object.entries(raw.overtimeNotes).forEach(([date, note]) => {
+      if (isValidIsoDate(date) && typeof note === "string" && note.trim()) overtimeNotes[date] = note;
+    });
+  }
+
   /** 清洗台账条目 */
   const entries: Record<string, CompTimeLedgerEntry> = {};
   if (isPlainObject(raw.entries)) {
@@ -128,6 +136,7 @@ export function sanitizeCompTimeData(raw: unknown): CompTimeData {
     specialDates,
     ignoredDates,
     draftHourOverrides,
+    overtimeNotes,
     entries,
   };
 }
@@ -168,16 +177,23 @@ export class CompTimeStore {
   }
 
   /** 将写操作排队执行，保证数据一致性 */
-  private enqueue<T>(action: () => Promise<T>): Promise<T> {
+  private enqueue<T>(action: (data: CompTimeData) => Promise<T>): Promise<T> {
     /** 串行执行的承诺对象 */
-    const result = this.pendingWrite.then(action);
+    const result = this.pendingWrite.then(async () => {
+      /** 当前排队操作的独立草稿，保存成功前不向读取方暴露 */
+      const draft = this.getData();
+      /** 操作结果仅在磁盘保存成功后返回 */
+      const value = await action(draft);
+      this.data = draft;
+      return value;
+    });
     this.pendingWrite = result.then(() => undefined, () => undefined);
     return result;
   }
 
   /** 持久化当前内存快照 */
-  private async persist(): Promise<void> {
-    await this.adapter.saveCompTimeData(this.data);
+  private async persist(data: CompTimeData): Promise<void> {
+    await this.adapter.saveCompTimeData(data);
   }
 
   /** 读取当前调休数据的浅拷贝视图 */
@@ -187,6 +203,7 @@ export class CompTimeStore {
       specialDates: this.data.specialDates.map((item) => ({ ...item })),
       ignoredDates: [...this.data.ignoredDates],
       draftHourOverrides: { ...this.data.draftHourOverrides },
+      overtimeNotes: { ...this.data.overtimeNotes },
       entries: Object.fromEntries(
         Object.entries(this.data.entries).map(([key, entry]) => [
           key,
@@ -196,47 +213,62 @@ export class CompTimeStore {
     };
   }
 
+  /** 等待此前已排队的保存完成，导出时读取最新事项 */
+  flush(): Promise<void> {
+    return this.pendingWrite;
+  }
+
+  /** 按日期自动保存加班事项，清空输入时删除对应文本 */
+  setOvertimeNote(date: string, note: string): Promise<void> {
+    if (!isValidIsoDate(date)) return Promise.reject(new Error("无效的加班日期"));
+    return this.enqueue(async (data) => {
+      if (note.trim()) data.overtimeNotes[date] = note;
+      else delete data.overtimeNotes[date];
+      await this.persist(data);
+    });
+  }
+
   /** 添加或更新公司公示的特殊加班日期 */
   addSpecialDate(date: string, note: string): Promise<void> {
     if (!isValidIsoDate(date)) return Promise.reject(new Error("请输入有效的特殊日期（YYYY-MM-DD）"));
-    return this.enqueue(async () => {
+    return this.enqueue(async (data) => {
       /** 过滤旧的同日记录，按日期排序存储 */
-      const filtered = this.data.specialDates.filter((item) => item.date !== date);
+      const filtered = data.specialDates.filter((item) => item.date !== date);
       filtered.push({ date, note: note.trim() });
       filtered.sort((left, right) => right.date.localeCompare(left.date));
-      this.data.specialDates = filtered;
+      data.specialDates = filtered;
       // 新增特殊日期时自动解除此前忽略状态
-      this.data.ignoredDates = this.data.ignoredDates.filter((item) => item !== date);
-      await this.persist();
+      data.ignoredDates = data.ignoredDates.filter((item) => item !== date);
+      await this.persist(data);
     });
   }
 
   /** 移除公司公示的特殊加班日期 */
   removeSpecialDate(date: string): Promise<void> {
-    return this.enqueue(async () => {
-      this.data.specialDates = this.data.specialDates.filter((item) => item.date !== date);
-      await this.persist();
+    return this.enqueue(async (data) => {
+      data.specialDates = data.specialDates.filter((item) => item.date !== date);
+      await this.persist(data);
     });
   }
 
   /** 保存当前周期自动带出项的人工微调时长 */
   setDraftHourOverride(date: string, hours: number): Promise<void> {
     if (!isValidIsoDate(date)) return Promise.reject(new Error("无效日期"));
-    return this.enqueue(async () => {
-      this.data.draftHourOverrides[date] = normalizeHalfHour(hours);
-      await this.persist();
+    return this.enqueue(async (data) => {
+      data.draftHourOverrides[date] = normalizeHalfHour(hours);
+      await this.persist(data);
     });
   }
 
   /** 忽略某天自动带出的加班信息 */
   ignoreCandidateDate(date: string): Promise<void> {
     if (!isValidIsoDate(date)) return Promise.reject(new Error("无效日期"));
-    return this.enqueue(async () => {
-      if (!this.data.ignoredDates.includes(date)) {
-        this.data.ignoredDates.push(date);
+    return this.enqueue(async (data) => {
+      if (!data.ignoredDates.includes(date)) {
+        data.ignoredDates.push(date);
       }
-      delete this.data.draftHourOverrides[date];
-      await this.persist();
+      delete data.draftHourOverrides[date];
+      await this.persist(data);
     });
   }
 
@@ -252,7 +284,7 @@ export class CompTimeStore {
     const hours = normalizeHalfHour(input.hours);
     if (hours <= 0) return Promise.reject(new Error("调休时长必须至少为 0.5 小时"));
 
-    return this.enqueue(async () => {
+    return this.enqueue(async (data) => {
       /** 初始到期日（加班当月起3个月内月底） */
       const initialExpiresAt = calculateInitialExpiryDate(input.date);
       /** 新建台账条目 */
@@ -268,9 +300,9 @@ export class CompTimeStore {
         submittedAt: Date.now(),
         note: input.note.trim(),
       };
-      this.data.entries[entry.id] = entry;
-      delete this.data.draftHourOverrides[input.date];
-      await this.persist();
+      data.entries[entry.id] = entry;
+      delete data.draftHourOverrides[input.date];
+      await this.persist(data);
       return { ...entry, usages: [] };
     });
   }
@@ -280,9 +312,9 @@ export class CompTimeStore {
     /** 规范化后的小时数 */
     const normalizedHours = normalizeHalfHour(hours);
     if (normalizedHours <= 0) return Promise.reject(new Error("调休时长必须至少为 0.5 小时"));
-    return this.enqueue(async () => {
+    return this.enqueue(async (data) => {
       /** 待更新的台账记录 */
-      const existing = this.data.entries[id];
+      const existing = data.entries[id];
       if (!existing) throw new Error("未找到对应的调休记录");
       /** 已使用总时长 */
       const usedHours = normalizeHalfHour(existing.usages.reduce((sum, item) => sum + item.usedHours, 0));
@@ -291,29 +323,29 @@ export class CompTimeStore {
       }
       existing.hours = normalizedHours;
       existing.note = note.trim();
-      await this.persist();
+      await this.persist(data);
     });
   }
 
   /** 删除指定的已提报调休记录 */
   deleteEntry(id: string): Promise<void> {
-    return this.enqueue(async () => {
-      delete this.data.entries[id];
-      await this.persist();
+    return this.enqueue(async (data) => {
+      delete data.entries[id];
+      await this.persist(data);
     });
   }
 
   /** 为指定调休记录执行一次延期（延长3个月至月底，限一次） */
   extendEntry(id: string): Promise<void> {
-    return this.enqueue(async () => {
+    return this.enqueue(async (data) => {
       /** 待延期的台账记录 */
-      const existing = this.data.entries[id];
+      const existing = data.entries[id];
       if (!existing) throw new Error("未找到对应的调休记录");
       if (existing.extended) throw new Error("每笔调休仅支持延期一次");
       existing.expiresAt = calculateExtendedExpiryDate(existing.expiresAt);
       existing.extended = true;
       existing.extendedAt = Date.now();
-      await this.persist();
+      await this.persist(data);
     });
   }
 
@@ -324,9 +356,9 @@ export class CompTimeStore {
     const hours = normalizeHalfHour(usedHours);
     if (hours <= 0) return Promise.reject(new Error("使用时长必须至少为 0.5 小时"));
 
-    return this.enqueue(async () => {
+    return this.enqueue(async (data) => {
       /** 目标台账记录 */
-      const existing = this.data.entries[id];
+      const existing = data.entries[id];
       if (!existing) throw new Error("未找到对应的调休记录");
       /** 当前已使用小时数 */
       const currentUsed = normalizeHalfHour(existing.usages.reduce((sum, item) => sum + item.usedHours, 0));
@@ -342,18 +374,18 @@ export class CompTimeStore {
         note: note.trim(),
         createdAt: Date.now(),
       });
-      await this.persist();
+      await this.persist(data);
     });
   }
 
   /** 撤销单条使用记录 */
   removeUsage(entryId: string, usageId: string): Promise<void> {
-    return this.enqueue(async () => {
+    return this.enqueue(async (data) => {
       /** 目标台账记录 */
-      const existing = this.data.entries[entryId];
+      const existing = data.entries[entryId];
       if (!existing) throw new Error("未找到对应的调休记录");
       existing.usages = existing.usages.filter((item) => item.id !== usageId);
-      await this.persist();
+      await this.persist(data);
     });
   }
 
@@ -379,7 +411,7 @@ export class CompTimeStore {
     }
 
     /** 校验并收集有效日期与小时数 */
-    const updates: { date: string; hours: number }[] = [];
+    const updates: { date: string; hours: number; overtimeNote?: string }[] = [];
     for (const item of rawItems) {
       if (!isPlainObject(item) || !isValidIsoDate(item.date)) {
         return Promise.reject(new Error("导入文件中包含无效日期（需为 YYYY-MM-DD）"));
@@ -387,14 +419,22 @@ export class CompTimeStore {
       if (typeof item.hours !== "number" || !Number.isFinite(item.hours) || item.hours < 0) {
         return Promise.reject(new Error(`${item.date} 的调休小时数无效`));
       }
-      updates.push({ date: item.date, hours: normalizeHalfHour(item.hours) });
+      if (item.overtimeNote !== undefined && typeof item.overtimeNote !== "string") {
+        return Promise.reject(new Error(`${item.date} 的加班事项必须为文本`));
+      }
+      updates.push({ date: item.date, hours: normalizeHalfHour(item.hours), overtimeNote: item.overtimeNote });
     }
 
-    return this.enqueue(async () => {
-      updates.forEach(({ date, hours }) => {
-        this.data.draftHourOverrides[date] = hours;
+    return this.enqueue(async (data) => {
+      updates.forEach(({ date, hours, overtimeNote }) => {
+        data.draftHourOverrides[date] = hours;
+        // 旧文件没有事项字段时保留本地事项；明确传空文本才清空
+        if (overtimeNote !== undefined) {
+          if (overtimeNote.trim()) data.overtimeNotes[date] = overtimeNote;
+          else delete data.overtimeNotes[date];
+        }
       });
-      await this.persist();
+      await this.persist(data);
       return { importedCount: updates.length };
     });
   }

@@ -25,8 +25,8 @@ export const COMP_TIME_LUNCH_BREAK: readonly [number, number] = [12 * 60, 13 * 6
 /** 晚饭休息不计入加班的时段（18:00-19:00） */
 export const COMP_TIME_DINNER_BREAK: readonly [number, number] = [18 * 60, 19 * 60];
 
-/** 工作日进入加班统计的起始基准分钟数（18:00，配合18:00-19:00晚饭扣除后等价于19:00起算） */
-export const COMP_TIME_WORKDAY_OVERTIME_START_MINUTE = 18 * 60;
+/** 工作日须先满足8小时正常工时，再将超出部分计入调休 */
+export const COMP_TIME_WORKDAY_REGULAR_MINUTES = 8 * 60;
 
 /** 默认的调休统计持久化数据结构 */
 export function createEmptyCompTimeData(): CompTimeData {
@@ -35,6 +35,7 @@ export function createEmptyCompTimeData(): CompTimeData {
     specialDates: [],
     ignoredDates: [],
     draftHourOverrides: {},
+    overtimeNotes: {},
     entries: {},
   };
 }
@@ -82,7 +83,7 @@ function getOverlapMinutes(aStart: number, aEnd: number, bStart: number, bEnd: n
   return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
 }
 
-/** 按规则计算单日加班净时长：工作日自18:00后起算，扣除12:00-13:00及18:00-19:00，0.5h向下取整，跨夜最多4h */
+/** 按规则计算单日加班净时长：扣除12:00-13:00及18:00-19:00，工作日再扣8小时正常工时，0.5h向下取整，跨夜最多4h */
 export function calculateCompTimeOvertime(
   startMinute: number | null,
   endMinute: number | null,
@@ -98,23 +99,14 @@ export function calculateCompTimeOvertime(
     };
   }
 
-  /** 工作日仅统计正常下班基准（18:00）之后的部分，非工作日从上班打卡起算 */
-  const effectiveStart = isWorkday ? Math.max(startMinute, COMP_TIME_WORKDAY_OVERTIME_START_MINUTE) : startMinute;
-  if (endMinute <= effectiveStart) {
-    return {
-      rawNetMinutes: 0,
-      uncappedHours: 0,
-      calculatedHours: 0,
-      cappedByOvernight: false,
-    };
-  }
-
   /** 当日午休和晚饭扣除的总分钟数 */
-  const breakMinutes = getOverlapMinutes(effectiveStart, endMinute, COMP_TIME_LUNCH_BREAK[0], COMP_TIME_LUNCH_BREAK[1])
-    + getOverlapMinutes(effectiveStart, endMinute, COMP_TIME_DINNER_BREAK[0], COMP_TIME_DINNER_BREAK[1]);
+  const breakMinutes = getOverlapMinutes(startMinute, endMinute, COMP_TIME_LUNCH_BREAK[0], COMP_TIME_LUNCH_BREAK[1])
+    + getOverlapMinutes(startMinute, endMinute, COMP_TIME_DINNER_BREAK[0], COMP_TIME_DINNER_BREAK[1]);
 
-  /** 扣除休息时间后的净加班分钟数 */
-  const rawNetMinutes = Math.max(0, endMinute - effectiveStart - breakMinutes);
+  /** 工作日扣除正常工时，休息日、节假日和特殊日期不扣 */
+  const regularMinutes = isWorkday ? COMP_TIME_WORKDAY_REGULAR_MINUTES : 0;
+  /** 从实际出勤时长扣除休息和正常工时后的净加班分钟数 */
+  const rawNetMinutes = Math.max(0, endMinute - startMinute - breakMinutes - regularMinutes);
   /** 不足0.5小时不计，满0.5小时按0.5小时向下取整 */
   const uncappedHours = Math.floor(rawNetMinutes / 30) * 0.5;
   /** 跨夜当天最多计算4小时 */
@@ -184,6 +176,17 @@ export function isOvernightAttendance(record: AttendanceRecord): boolean {
     || (record.endMinute !== null && record.endMinute >= 24 * 60);
 }
 
+/** 调休计算独立使用修正后的时段，不改写原始考勤；跨夜次日默认09:00，周五不累计周六凌晨 */
+function getCompTimePunches(record: AttendanceRecord): Pick<AttendanceRecord, "startMinute" | "endMinute"> {
+  /** 跨夜关联已占用的最早打卡不能再作为次日上班时间 */
+  const startMinute = record.attendanceState === "ambiguous-start" ? 9 * 60 : record.startMinute;
+  /** 按真实日期识别周五，避免原始星期字段不一致 */
+  const isFriday = new Date(`${record.date}T00:00:00Z`).getUTCDay() === 5;
+  /** 周五晚间只保留当日部分，跨夜封顶仍沿用原规则 */
+  const endMinute = isFriday && record.endMinute !== null ? Math.min(record.endMinute, 24 * 60) : record.endMinute;
+  return { startMinute, endMinute };
+}
+
 /** 自动带出当前考勤周期内有加班时长的记录（含日常工作日加班、休息日、法定节假日及特殊日期），过往周期未提报自动清空 */
 export function getCurrentCycleCandidates(
   records: AttendanceRecord[],
@@ -216,10 +219,12 @@ export function getCurrentCycleCandidates(
       const specialNote = specialMap.get(record.date) ?? "";
       /** 是否跨夜 */
       const isOvernight = isOvernightAttendance(record);
-      /** 日常工作日仅从18:00后计算加班，节假日、休息日与特殊日期全天计入 */
+      /** 日常工作日扣除8小时正常工时，节假日、休息日与特殊日期只扣吃饭时间 */
       const isWorkdayOnly = sourceType === "workday";
-      /** 规则计算结果 */
-      const calculation = calculateCompTimeOvertime(record.startMinute, record.endMinute, isOvernight, isWorkdayOnly);
+      /** 调休计算使用的独立日时段 */
+      const { startMinute, endMinute } = getCompTimePunches(record);
+      /** 使用独立日时段计算，避免凌晨重复计入 */
+      const calculation = calculateCompTimeOvertime(startMinute, endMinute, isOvernight, isWorkdayOnly);
       /** 若存在人工微调则采用微调值 */
       const override = data.draftHourOverrides[record.date];
       /** 最终拟提报时长 */
@@ -233,8 +238,8 @@ export function getCurrentCycleCandidates(
         date: record.date,
         sourceType,
         specialNote,
-        startMinute: record.startMinute,
-        endMinute: record.endMinute,
+        startMinute,
+        endMinute,
         isOvernight,
         calculation,
         adjustedHours,
@@ -362,9 +367,11 @@ export function calculateCompTimeReport(
           : "workday";
     /** 是否跨夜 */
     const isOvernight = record ? isOvernightAttendance(record) : false;
+    /** 调休统计使用的独立日时段 */
+    const punches = record ? getCompTimePunches(record) : { startMinute: null, endMinute: null };
     /** 按规则计算得到的时长 */
     const calculation = record
-      ? calculateCompTimeOvertime(record.startMinute, record.endMinute, isOvernight, sourceType === "workday")
+      ? calculateCompTimeOvertime(punches.startMinute, punches.endMinute, isOvernight, sourceType === "workday")
       : { rawNetMinutes: 0, uncappedHours: 0, calculatedHours: 0, cappedByOvernight: false };
     /** 是否存在导入校准值 */
     const override = data.draftHourOverrides[date];
@@ -376,12 +383,14 @@ export function calculateCompTimeReport(
     rows.push({
       date,
       sourceType,
-      startMinute: record?.startMinute ?? null,
-      endMinute: record?.endMinute ?? null,
+      startMinute: punches.startMinute,
+      endMinute: punches.endMinute,
+      assumedStart: record?.attendanceState === "ambiguous-start",
       isOvernight,
       calculatedHours: calculation.calculatedHours,
       reportableHours,
       fromImport: override !== undefined,
+      overtimeNote: data.overtimeNotes[date] ?? "",
       referenceExpiresAt: calculateInitialExpiryDate(date),
     });
   });

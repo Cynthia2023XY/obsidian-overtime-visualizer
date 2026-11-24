@@ -10,6 +10,7 @@ import {
   getCurrentCycleCandidates,
   summarizeCompTime,
 } from "./comp-time";
+import { linkOvernightRecords } from "../import/link-overnight";
 import { ATTENDANCE_RECORD_MOCKS } from "../mocks/attendance-records";
 import type { AttendanceRecord } from "../types/attendance";
 
@@ -35,6 +36,81 @@ function makeRecord(
 }
 
 describe("调休时长与规则计算", () => {
+  it("2026-11-18的10:01至21:35扣吃饭及8小时正常工时后计1.5小时", () => {
+    /** 用户反馈的实际工作日记录 */
+    const record = makeRecord("2026-11-18", 10 * 60 + 1, 21 * 60 + 35, "workday");
+    /** 规则计算应剩余94分钟，而非固定19点起算的155分钟 */
+    const calculation = calculateCompTimeOvertime(record.startMinute, record.endMinute, false, true);
+    expect(calculation.rawNetMinutes).toBe(94);
+    expect(calculation.calculatedHours).toBe(1.5);
+    expect(calculateCompTimeReport([record], createEmptyCompTimeData(), record.date, record.date)).toEqual({
+      rows: [expect.objectContaining({ reportableHours: 1.5, referenceExpiresAt: "2027-01-31" })],
+      totalHours: 1.5,
+    });
+    expect(getCurrentCycleCandidates([record], createEmptyCompTimeData(), "2026-11-20")[0]?.adjustedHours).toBe(1.5);
+    // 相同时段的休息日只扣2小时吃饭，无需扣除8小时正常工时
+    expect(calculateCompTimeOvertime(record.startMinute, record.endMinute, false, false).calculatedHours).toBe(9.5);
+  });
+
+  it("工作日完成8小时正常工时后才按半小时向下取整", () => {
+    expect(calculateCompTimeOvertime(601, 19 * 60, false, true).calculatedHours).toBe(0);
+    expect(calculateCompTimeOvertime(601, 20 * 60 + 30, false, true).calculatedHours).toBe(0);
+    expect(calculateCompTimeOvertime(601, 20 * 60 + 31, false, true).calculatedHours).toBe(0.5);
+    expect(calculateCompTimeOvertime(601, 21 * 60, false, true).calculatedHours).toBe(0.5);
+    expect(calculateCompTimeOvertime(601, 21 * 60 + 1, false, true).calculatedHours).toBe(1);
+  });
+
+  it("周四跨夜单独核算，周五默认09:00开始且不重复计入凌晨", () => {
+    /** 经过真实跨夜关联的周四和周五考勤 */
+    const records = linkOvernightRecords([
+      makeRecord("2026-11-19", 9 * 60, 23 * 60, "workday", "confirmed"),
+      makeRecord("2026-11-20", 2 * 60, 21 * 60 + 30, "workday"),
+    ], 5 * 60).records;
+    /** 调休统计不改变原始打卡数据 */
+    const original = JSON.stringify(records);
+    /** 两天独立统计的调休报告 */
+    const report = calculateCompTimeReport(records, createEmptyCompTimeData(), "2026-11-19", "2026-11-20");
+    expect(report.rows).toEqual([
+      expect.objectContaining({ date: "2026-11-20", startMinute: 540, assumedStart: true, reportableHours: 2.5 }),
+      expect.objectContaining({ date: "2026-11-19", endMinute: 1560, reportableHours: 4 }),
+    ]);
+    expect(report.totalHours).toBe(6.5);
+    expect(JSON.stringify(records)).toBe(original);
+    expect(getCurrentCycleCandidates(records, createEmptyCompTimeData(), "2026-11-21")[0]).toEqual(
+      expect.objectContaining({ date: "2026-11-20", startMinute: 540, adjustedHours: 2.5 }),
+    );
+  });
+
+  it("周五只保留午夜前时长，周六不重复使用凌晨打卡", () => {
+    /** 周五14点上班至周六02点，周六另有18点打卡 */
+    const records = linkOvernightRecords([
+      makeRecord("2026-11-20", 14 * 60, 23 * 60 + 59, "workday", "confirmed"),
+      makeRecord("2026-11-21", 2 * 60, 18 * 60, "rest-day"),
+    ], 5 * 60).records;
+    /** 周五剩余1小时，周六09点到18点扣午休为8小时 */
+    const report = calculateCompTimeReport(records, createEmptyCompTimeData(), "2026-11-20", "2026-11-21");
+    expect(report.rows).toEqual([
+      expect.objectContaining({ date: "2026-11-21", startMinute: 540, assumedStart: true, reportableHours: 8 }),
+      expect.objectContaining({ date: "2026-11-20", endMinute: 1440, reportableHours: 1 }),
+    ]);
+    expect(report.totalHours).toBe(9);
+  });
+
+  it("跨夜次日只有凌晨结束打卡时不补造出勤，人工修正和导入校准优先", () => {
+    /** 凌晨打卡被前一日占用，当日没有白天出勤 */
+    const record = { ...makeRecord("2026-11-21", 120, 120, "rest-day"), attendanceState: "ambiguous-start" as const };
+    /** 默认不能从凌晨生成额外调休 */
+    const data = createEmptyCompTimeData();
+    expect(calculateCompTimeReport([record], data, record.date, record.date).rows).toHaveLength(0);
+    data.draftHourOverrides[record.date] = 3;
+    expect(calculateCompTimeReport([record], data, record.date, record.date).totalHours).toBe(3);
+    /** 人工修正后恢复真实上班时间 */
+    const corrected = { ...record, startMinute: 10 * 60, endMinute: 18 * 60, attendanceState: "complete" as const, manuallyEdited: true };
+    expect(calculateCompTimeReport([corrected], createEmptyCompTimeData(), record.date, record.date).rows[0]).toEqual(
+      expect.objectContaining({ startMinute: 600, assumedStart: false, reportableHours: 7 }),
+    );
+  });
+
   it("不足0.5小时不计，0.5至1小时之间按0.5小时计算，且扣除12:00-13:00与18:00-19:00", () => {
     expect(calculateCompTimeOvertime(9 * 60, 9 * 60 + 29, false).calculatedHours).toBe(0);
     expect(calculateCompTimeOvertime(9 * 60, 9 * 60 + 30, false).calculatedHours).toBe(0.5);
@@ -98,7 +174,7 @@ describe("调休时长与规则计算", () => {
       makeRecord("2026-10-01", 9 * 60, 18 * 60, "holiday"),
       // 当前周期普通工作日 09:00-18:45（扣除18:00-19:00晚饭后净加班为0）-> 不带出
       makeRecord("2026-11-17", 9 * 60, 18 * 60 + 45, "workday"),
-      // 当前周期日常工作日加班 09:00-21:40（19:00起算共2小时40分 -> 2.5小时）-> 带出
+      // 当前周期日常工作日加班 09:00-21:40（扣2小时吃饭及8小时正常工时后余2小时40分 -> 2.5小时）-> 带出
       makeRecord("2026-11-18", 9 * 60, 21 * 60 + 40, "workday"),
       // 当前周期普通休息日 09:00-18:00（扣除12:00-13:00共8小时）-> 带出
       makeRecord("2026-11-14", 9 * 60, 18 * 60, "rest-day"),
