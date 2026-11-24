@@ -4,6 +4,7 @@ import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 import { ATTENDANCE_DATA_DISPLAY_NAME, ATTENDANCE_DATA_VIEW_TYPE, OVERTIME_DASHBOARD_VIEW_TYPE } from "../constants";
 import { mapAttendanceTableRows } from "../mappers/secondary-view-mapper";
 import type { PluginDataRepository } from "../repository/plugin-data-repository";
+import type { CompTimeStore } from "../repository/comp-time-store";
 import { renderAttendanceTable } from "../ui/attendance-table";
 import { ImportPreviewModal } from "../ui/import-preview-modal";
 import { DailyAttendanceModal, importReliefFile, ReliefEditModal } from "../ui/data-management-modals";
@@ -18,6 +19,7 @@ export class AttendanceDataView extends ItemView {
   constructor(
     leaf: WorkspaceLeaf,
     private readonly repository: PluginDataRepository,
+    private readonly compTimeStore?: CompTimeStore,
   ) {
     super(leaf);
   }
@@ -50,7 +52,7 @@ export class AttendanceDataView extends ItemView {
     contentEl.addClass("otv-view");
 
     this.board?.destroy();
-    this.board = new PrototypeBoard(this.app, this.repository, contentEl, "每日记录");
+    this.board = new PrototypeBoard(this.app, this.repository, contentEl, "每日记录", this.compTimeStore);
     this.board.render();
     // 明细导出入口沿用原有持久化流程
     const legacyButton = contentEl.createEl("button", { text: "完整明细与导出", cls: "pv-legacy" });

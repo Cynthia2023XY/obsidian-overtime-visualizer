@@ -14,6 +14,8 @@ appendFileSync("styles.css", readFileSync(new URL("./src/ui/attendance-sync-sett
 appendFileSync("styles.css", readFileSync(new URL("./src/ui/relief-calendar.css", import.meta.url)));
 // 在共享样式之后加载压力构成的紧凑行布局
 appendFileSync("styles.css", readFileSync(new URL("./src/ui/pressure-composition.css", import.meta.url)));
+// 在共享样式之后加载调休统计页面样式
+appendFileSync("styles.css", readFileSync(new URL("./src/ui/comp-time-panel.css", import.meta.url)));
 
 /** 构建产物顶部的自动生成声明 */
 const banner = `/*

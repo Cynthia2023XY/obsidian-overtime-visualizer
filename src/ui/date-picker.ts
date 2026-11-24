@@ -36,22 +36,26 @@ export function renderDatePicker(parent: HTMLElement, label: string, value: stri
     let month = new Date(`${value.slice(0, 7)}-01T12:00:00`);
     // 选择日期后交给概览统一校正起止顺序
     const choose = (date: string): void => { setOpen(false); trigger.focus(); onChange(date); };
-    // 重绘当前月份及可选择的日期
+    // 头部与导航按钮固定挂载，避免切月重绘销毁当前焦点按钮触发 focusout 关闭浮层
+    const header = panel.createDiv({ cls: "pv-date-header" });
+    // 前后月份导航入口
+    const previous = header.createEl("button", { attr: { "aria-label": "上个月" } });
+    setIcon(previous, "chevron-left");
+    // 当前浏览年月标题
+    const title = header.createEl("strong", { attr: { "aria-live": "polite" } });
+    // 后一个月入口
+    const next = header.createEl("button", { attr: { "aria-label": "下个月" } });
+    setIcon(next, "chevron-right");
+    // 周一开始的固定六周日期网格
+    const grid = panel.createDiv({ cls: "pv-date-grid" });
+    // 快捷返回今天，同时明确当前正在选择的边界
+    const footer = panel.createDiv({ cls: "pv-date-footer" });
+    footer.createSpan({ text: `选择${label}` });
+    footer.createEl("button", { text: "今天" }).onclick = () => choose(formatLocalIsoDate(new Date()));
+    // 重绘当前月份标题与可选择的日期网格
     const render = (): void => {
-        panel.empty();
-        // 月份导航保留独立按钮，方便连续切换
-        const header = panel.createDiv({ cls: "pv-date-header" });
-        // 前后月份导航入口
-        const previous = header.createEl("button", { attr: { "aria-label": "上个月" } });
-        setIcon(previous, "chevron-left");
-        header.createEl("strong", { text: `${month.getFullYear()} 年 ${month.getMonth() + 1} 月`, attr: { "aria-live": "polite" } });
-        // 后一个月入口
-        const next = header.createEl("button", { attr: { "aria-label": "下个月" } });
-        setIcon(next, "chevron-right");
-        previous.onclick = () => { month.setMonth(month.getMonth() - 1); render(); panel.querySelector<HTMLButtonElement>("button")?.focus(); };
-        next.onclick = () => { month.setMonth(month.getMonth() + 1); render(); panel.querySelectorAll<HTMLButtonElement>("button")[1]?.focus(); };
-        // 周一开始的固定六周日期网格
-        const grid = panel.createDiv({ cls: "pv-date-grid" });
+        title.textContent = `${month.getFullYear()} 年 ${month.getMonth() + 1} 月`;
+        grid.empty();
         ["一", "二", "三", "四", "五", "六", "日"].forEach((day) => grid.createSpan({ cls: "pv-date-weekday", text: day }));
         // 当月第一天相对周一的偏移量
         const offset = (month.getDay() + 6) % 7;
@@ -66,11 +70,9 @@ export function renderDatePicker(parent: HTMLElement, label: string, value: stri
             const day = grid.createEl("button", { text: String(date.getDate()), cls: `${date.getMonth() !== month.getMonth() ? "is-outside" : ""} ${iso === value ? "is-selected" : ""} ${iso === today ? "is-today" : ""}`, attr: { "aria-label": iso, "aria-pressed": String(iso === value) } });
             day.onclick = () => choose(iso);
         }
-        // 快捷返回今天，同时明确当前正在选择的边界
-        const footer = panel.createDiv({ cls: "pv-date-footer" });
-        footer.createSpan({ text: `选择${label}` });
-        footer.createEl("button", { text: "今天" }).onclick = () => choose(today);
     };
+    previous.onclick = () => { month.setMonth(month.getMonth() - 1); render(); };
+    next.onclick = () => { month.setMonth(month.getMonth() + 1); render(); };
     trigger.onclick = () => {
         if (!panel.hidden) { setOpen(false); return; }
         month = new Date(`${value.slice(0, 7)}-01T12:00:00`);
